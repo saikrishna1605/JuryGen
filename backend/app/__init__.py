@@ -1,0 +1,1 @@
+# Legal Companion Backend Application
