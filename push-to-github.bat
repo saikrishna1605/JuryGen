@@ -39,7 +39,7 @@ git commit -m "🎉 Initial commit: Legal Companion AI-powered legal document an
 - 🚧 Ready for document upload and AI processing features
 
 🔑 Configured Services:
-- Google Cloud Project: kiro-hackathon23
+- Google Cloud Project: [YOUR-PROJECT-ID]
 - Firebase Authentication with multi-provider support
 - Vertex AI for advanced language models
 - Document AI for intelligent document processing

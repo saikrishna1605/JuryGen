@@ -100,4 +100,29 @@ coverage/
 # Sensitive files
 backend/service-account.json
 backend/.env
+backend/.env.*
+!backend/.env.example
 frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Additional security patterns
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/credentials.*
+**/secrets.*
+**/*-secret.*
+**/*-private.*
+**/*-key.json
+**/*-credentials.json
+**/*-config.json
+!**/example-*.json
+!**/*.example.json
+
+# API key files
+**/firebase-config.js
+**/google-credentials.*
+**/aws-credentials.*
+**/azure-credentials.*

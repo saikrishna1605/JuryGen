@@ -107,8 +107,8 @@ Go to: Repository → Settings → Secrets and variables → Actions
 Add these secrets for automated deployment:
 ```
 FIREBASE_API_KEY=your_firebase_api_key
-FIREBASE_PROJECT_ID=kiro-hackathon23
-GOOGLE_CLOUD_PROJECT=kiro-hackathon23
+FIREBASE_PROJECT_ID=your_actual_project_id
+GOOGLE_CLOUD_PROJECT=your_actual_project_id
 ```
 
 ### 3. Enable GitHub Pages (Optional)
