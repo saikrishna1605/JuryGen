@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { UploadPage } from './pages/UploadPage'
 import './App.css'
 
 // Navigation component with auth state
@@ -31,6 +32,7 @@ const Navigation = () => {
             {currentUser ? (
               <>
                 <Link to="/dashboard" className="text-gray-700 hover:text-gray-900">Dashboard</Link>
+                <Link to="/upload" className="text-gray-700 hover:text-gray-900">Upload</Link>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-600">
                     {currentUser.displayName || currentUser.email || 'User'}
@@ -153,6 +155,7 @@ function App() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/upload" element={<UploadPage />} />
           </Routes>
         </div>
       </Router>

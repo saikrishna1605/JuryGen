@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     FIRESTORE_DATABASE_ID: str = Field(default="(default)")
     
     # Cloud Storage
+    STORAGE_BUCKET: Optional[str] = Field(default=None)
     STORAGE_BUCKET_UPLOADS: Optional[str] = Field(default=None)
     STORAGE_BUCKET_OUTPUTS: Optional[str] = Field(default=None)
     
@@ -138,3 +139,8 @@ class Settings(BaseSettings):
 
 # Create global settings instance
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get application settings instance."""
+    return settings

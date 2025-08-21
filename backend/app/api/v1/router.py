@@ -26,12 +26,15 @@ try:
 except ImportError:
     pass  # Auth endpoints not available in minimal mode
 
-# Placeholder for future routers
-# api_router.include_router(
-#     upload.router,
-#     prefix="/upload",
-#     tags=["upload"]
-# )
+# Include upload endpoints
+try:
+    from .endpoints import upload
+    api_router.include_router(
+        upload.router,
+        tags=["upload"]
+    )
+except ImportError:
+    pass  # Upload endpoints not available in minimal mode
 # 
 # api_router.include_router(
 #     jobs.router,

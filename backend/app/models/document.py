@@ -19,6 +19,58 @@ from .base import (
 )
 
 
+class DocumentLayout(BaseModel):
+    """Document layout information from OCR processing."""
+    
+    pages: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Page layout information"
+    )
+    total_pages: int = Field(ge=0, description="Total number of pages")
+    
+    @field_validator('total_pages')
+    @classmethod
+    def validate_total_pages(cls, v: int) -> int:
+        """Validate that total pages is non-negative."""
+        if v < 0:
+            raise ValueError('Total pages must be non-negative')
+        return v
+
+
+class OCRResult(BaseModel):
+    """Result of OCR processing."""
+    
+    text: str = Field(description="Extracted text content")
+    confidence: float = Field(
+        ge=0, le=1,
+        description="Overall confidence score"
+    )
+    layout: DocumentLayout = Field(description="Document layout information")
+    processing_method: str = Field(description="OCR method used")
+    language_code: str = Field(
+        default="en",
+        description="Detected language code"
+    )
+    processing_time: Optional[float] = Field(
+        default=None,
+        description="Processing time in seconds"
+    )
+    
+    @field_validator('processing_method')
+    @classmethod
+    def validate_processing_method(cls, v: str) -> str:
+        """Validate processing method."""
+        allowed_methods = [
+            'document_ai',
+            'vision_api',
+            'pdf_text_extraction',
+            'docx_extraction'
+        ]
+        if v not in allowed_methods:
+            raise ValueError(f'Invalid processing method: {v}')
+        return v
+
+
 class DocumentMetadata(BaseModel):
     """Document metadata extracted during processing."""
     

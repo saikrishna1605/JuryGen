@@ -1,247 +1,109 @@
 """
-Custom exception classes for the application.
+Custom exceptions for the Legal Companion application.
 """
 
 from typing import Any, Dict, Optional
 
 
-class LegalCompanionException(Exception):
-    """Base exception class for Legal Companion application."""
+class LegalCompanionError(Exception):
+    """Base exception for Legal Companion application."""
     
-    def __init__(
-        self,
-        message: str,
-        error_code: str = "internal_error",
-        status_code: int = 500,
-        details: Optional[Dict[str, Any]] = None,
-    ):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         self.message = message
-        self.error_code = error_code
-        self.status_code = status_code
         self.details = details or {}
         super().__init__(self.message)
 
 
-class ValidationException(LegalCompanionException):
-    """Exception raised for validation errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        field: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="validation_error",
-            status_code=422,
-            details=details or {},
-        )
-        self.field = field
+class ValidationError(LegalCompanionError):
+    """Raised when data validation fails."""
+    pass
 
 
-class AuthenticationException(LegalCompanionException):
-    """Exception raised for authentication errors."""
-    
-    def __init__(
-        self,
-        message: str = "Authentication required",
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="authentication_required",
-            status_code=401,
-            details=details or {},
-        )
+class AuthenticationError(LegalCompanionError):
+    """Raised when authentication fails."""
+    pass
 
 
-class AuthorizationException(LegalCompanionException):
-    """Exception raised for authorization errors."""
-    
-    def __init__(
-        self,
-        message: str = "Insufficient permissions",
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="insufficient_permissions",
-            status_code=403,
-            details=details or {},
-        )
+class AuthorizationError(LegalCompanionError):
+    """Raised when authorization fails."""
+    pass
 
 
-class ResourceNotFoundException(LegalCompanionException):
-    """Exception raised when a resource is not found."""
-    
-    def __init__(
-        self,
-        resource_type: str,
-        resource_id: str,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        message = f"{resource_type} with ID '{resource_id}' not found"
-        super().__init__(
-            message=message,
-            error_code="resource_not_found",
-            status_code=404,
-            details=details or {},
-        )
-        self.resource_type = resource_type
-        self.resource_id = resource_id
+class DocumentFormatError(LegalCompanionError):
+    """Raised when document format is unsupported or invalid."""
+    pass
 
 
-class RateLimitException(LegalCompanionException):
-    """Exception raised when rate limit is exceeded."""
-    
-    def __init__(
-        self,
-        message: str = "Rate limit exceeded",
-        retry_after: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="rate_limit_exceeded",
-            status_code=429,
-            details=details or {},
-        )
-        self.retry_after = retry_after
+class OCRProcessingError(LegalCompanionError):
+    """Raised when OCR processing fails."""
+    pass
 
 
-class FileUploadException(LegalCompanionException):
-    """Exception raised for file upload errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        file_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="file_upload_error",
-            status_code=400,
-            details=details or {},
-        )
-        self.file_name = file_name
+class AnalysisError(LegalCompanionError):
+    """Raised when document analysis fails."""
+    pass
 
 
-class ProcessingException(LegalCompanionException):
-    """Exception raised for document processing errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        stage: Optional[str] = None,
-        job_id: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="processing_error",
-            status_code=500,
-            details=details or {},
-        )
-        self.stage = stage
-        self.job_id = job_id
+class VectorSearchError(LegalCompanionError):
+    """Raised when vector search operations fail."""
+    pass
 
 
-class AIServiceException(LegalCompanionException):
-    """Exception raised for AI service errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        service: Optional[str] = None,
-        model: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="ai_service_error",
-            status_code=502,
-            details=details or {},
-        )
-        self.service = service
-        self.model = model
+class WorkflowError(LegalCompanionError):
+    """Raised when workflow execution fails."""
+    pass
 
 
-class StorageException(LegalCompanionException):
-    """Exception raised for storage errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        operation: Optional[str] = None,
-        bucket: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="storage_error",
-            status_code=500,
-            details=details or {},
-        )
-        self.operation = operation
-        self.bucket = bucket
+class StorageError(LegalCompanionError):
+    """Raised when storage operations fail."""
+    pass
 
 
-class QuotaExceededException(LegalCompanionException):
-    """Exception raised when quota is exceeded."""
-    
-    def __init__(
-        self,
-        message: str,
-        quota_type: Optional[str] = None,
-        current_usage: Optional[int] = None,
-        limit: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="quota_exceeded",
-            status_code=429,
-            details=details or {},
-        )
-        self.quota_type = quota_type
-        self.current_usage = current_usage
-        self.limit = limit
+class AIServiceError(LegalCompanionError):
+    """Raised when AI service calls fail."""
+    pass
 
 
-class ConfigurationException(LegalCompanionException):
-    """Exception raised for configuration errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        config_key: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="configuration_error",
-            status_code=500,
-            details=details or {},
-        )
-        self.config_key = config_key
+class TranslationError(LegalCompanionError):
+    """Raised when translation operations fail."""
+    pass
 
 
-class ExternalServiceException(LegalCompanionException):
-    """Exception raised for external service errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        service: Optional[str] = None,
-        status_code: int = 502,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="external_service_error",
-            status_code=status_code,
-            details=details or {},
-        )
-        self.service = service
+class AudioProcessingError(LegalCompanionError):
+    """Raised when audio processing fails."""
+    pass
+
+
+class ExportError(LegalCompanionError):
+    """Raised when export operations fail."""
+    pass
+
+
+class RateLimitError(LegalCompanionError):
+    """Raised when rate limits are exceeded."""
+    pass
+
+
+class QuotaExceededError(LegalCompanionError):
+    """Raised when service quotas are exceeded."""
+    pass
+
+
+class ConfigurationError(LegalCompanionError):
+    """Raised when configuration is invalid or missing."""
+    pass
+
+
+class DatabaseError(LegalCompanionError):
+    """Raised when database operations fail."""
+    pass
+
+
+class NetworkError(LegalCompanionError):
+    """Raised when network operations fail."""
+    pass
+
+
+class TimeoutError(LegalCompanionError):
+    """Raised when operations timeout."""
+    pass

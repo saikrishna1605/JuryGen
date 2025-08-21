@@ -50,79 +50,122 @@
     - Add request rate limiting and security headers middleware
     - _Requirements: 7.6, 10.3_
 
-- [ ] 4. Build document upload and storage system
-  - [ ] 4.1 Create frontend document upload component
+- [x] 4. Build document upload and storage system
+
+
+
+  - [x] 4.1 Create frontend document upload component
+
+
     - Implement drag-and-drop file upload with progress tracking
     - Add file type validation and size limits
     - Create upload queue management with retry logic
     - _Requirements: 1.1, 1.2, 1.5_
 
-  - [ ] 4.2 Implement backend upload handling with Cloud Storage
+  - [x] 4.2 Implement backend upload handling with Cloud Storage
+
+
     - Create signed URL generation for secure file uploads
     - Implement file validation and virus scanning integration
     - Set up Cloud Storage buckets with lifecycle policies and encryption
     - _Requirements: 1.3, 7.1, 7.3_
 
-- [ ] 5. Develop OCR and document processing pipeline
-  - [ ] 5.1 Create OCR Agent with Document AI integration
+- [x] 5. Develop OCR and document processing pipeline
+
+
+
+
+
+  - [x] 5.1 Create OCR Agent with Document AI integration
+
+
     - Implement Document AI client for PDF and image OCR processing
     - Add layout analysis and structured text extraction
     - Create fallback to Vision API for edge cases
     - _Requirements: 1.1, 1.2, 1.4_
 
-  - [ ] 5.2 Implement document preprocessing utilities
+  - [x] 5.2 Implement document preprocessing utilities
+
+
     - Create image deskewing and denoising functions
     - Implement document format detection and conversion
     - Add text extraction from DOCX and other formats
     - _Requirements: 1.4, 1.6_
 
-- [ ] 6. Build clause analysis and classification system
-  - [ ] 6.1 Create Clause Analyzer Agent with Gemini integration
+- [x] 6. Build clause analysis and classification system
+
+
+
+  - [x] 6.1 Create Clause Analyzer Agent with Gemini integration
+
+
     - Implement Gemini 1.5 Flash integration for clause classification
     - Create role-specific analysis prompts and response parsing
     - Implement clause risk scoring algorithms (0-100 scale)
     - _Requirements: 2.1, 2.2, 2.5_
 
-  - [ ] 6.2 Implement Vector Search for semantic clause matching
+  - [x] 6.2 Implement Vector Search for semantic clause matching
+
+
+
+
     - Set up Vertex AI Vector Search index for clause embeddings
     - Create embedding generation and storage pipeline
     - Implement similarity search for clause comparison and precedent finding
     - _Requirements: 2.6, 8.1, 8.2_
 
-- [ ] 7. Develop summarization and risk assessment agents
-  - [ ] 7.1 Create Summarizer Agent for plain language conversion
+- [-] 7. Develop summarization and risk assessment agents
+
+
+
+  - [-] 7.1 Create Summarizer Agent for plain language conversion
+
+
+
     - Implement Gemini 1.5 Pro integration for document summarization
     - Create reading level control and tone adjustment features
     - Add structured summary generation with clause preservation
     - _Requirements: 3.1, 3.2, 3.4_
 
-  - [ ] 7.2 Implement Risk Advisor Agent with legal grounding
+  - [x] 7.2 Implement Risk Advisor Agent with legal grounding
+
+
     - Create risk assessment logic with impact and likelihood scoring
     - Implement safer alternative wording generation
     - Add legal citation and statute reference integration
     - _Requirements: 2.3, 2.4, 8.3, 8.4_
 
-- [ ] 8. Build multi-agent orchestration system
-  - [ ] 8.1 Implement CrewAI agent coordination
+- [x] 8. Build multi-agent orchestration system
+
+
+  - [x] 8.1 Implement CrewAI agent coordination
+
+
     - Create agent definitions with roles, goals, and tools
     - Implement sequential task execution pipeline
     - Add inter-agent communication and data passing
     - _Requirements: 10.1, 10.2, 10.4_
 
-  - [ ] 8.2 Create Cloud Workflows integration
+  - [x] 8.2 Create Cloud Workflows integration
+
+
     - Define workflow YAML for agent pipeline orchestration
     - Implement error handling and retry logic in workflows
     - Add job status tracking and progress updates
     - _Requirements: 9.1, 9.2, 10.3_
 
-- [ ] 9. Implement real-time job processing and status updates
-  - [ ] 9.1 Create job management system
+- [-] 9. Implement real-time job processing and status updates
+
+  - [x] 9.1 Create job management system
+
+
     - Implement job creation, queuing, and status tracking in Firestore
     - Create job progress calculation and ETA estimation
     - Add job cancellation and cleanup functionality
     - _Requirements: 9.1, 9.4, 9.6_
 
-  - [ ] 9.2 Build real-time status streaming
+  - [-] 9.2 Build real-time status streaming
+
     - Implement Server-Sent Events (SSE) endpoint for job progress
     - Create Firestore real-time listeners for status updates
     - Add WebSocket fallback for real-time communication
