@@ -30,10 +30,10 @@ settings = get_settings()
 
 class SummarizerAgent:
     """
-    Specialized agent for converting legal documents to plain language summaries.
+    Specialized agent for converting legal documents into plain language summaries.
     
-    Uses Gemini 1.5 Pro for sophisticated document summarization with
-    reading level control and structured output.
+    Uses Gemini 1.5 Pro for sophisticated document understanding and 
+    plain language generation with reading level control.
     """
     
     def __init__(self):

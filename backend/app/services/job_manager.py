@@ -152,6 +152,10 @@ class JobManager:
         """Initialize the Job Manager."""
         self.firestore_service = FirestoreService()
         
+        # Import streaming service here to avoid circular imports
+        from .realtime_streaming import streaming_service
+        self.streaming_service = streaming_service
+        
         # Job queues by priority
         self.job_queues = {
             1: [],  # Low priority
@@ -644,6 +648,16 @@ class JobManager:
                         callback(job, message)
                 except Exception as e:
                     logger.warning(f"Global progress callback failed: {str(e)}")
+            
+            # Broadcast job update via streaming service
+            try:
+                job_data = job.to_dict()
+                if message:
+                    job_data["progress_message"] = message
+                
+                await self.streaming_service.broadcast_job_update(job.id, job_data)
+            except Exception as e:
+                logger.warning(f"Failed to broadcast job update via streaming: {str(e)}")
                     
         except Exception as e:
             logger.error(f"Failed to notify progress callbacks: {str(e)}")

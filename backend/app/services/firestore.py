@@ -143,6 +143,45 @@ class FirestoreService:
             )
             raise
     
+    async def get_document_raw(self, document_id: str) -> Optional[Dict[str, Any]]:
+        """Get raw document data by ID."""
+        try:
+            doc = await self.documents_collection.document(document_id).get()
+            
+            if not doc.exists:
+                return None
+            
+            return doc.to_dict()
+            
+        except GoogleCloudError as e:
+            logger.error(
+                "Failed to get raw document",
+                document_id=document_id,
+                error=str(e)
+            )
+            raise
+    
+    async def update_document_fields(self, document_id: str, fields: Dict[str, Any]) -> None:
+        """Update specific fields of a document."""
+        try:
+            fields["updated_at"] = firestore.SERVER_TIMESTAMP
+            
+            await self.documents_collection.document(document_id).update(fields)
+            
+            logger.info(
+                "Document fields updated successfully",
+                document_id=document_id,
+                fields=list(fields.keys())
+            )
+            
+        except GoogleCloudError as e:
+            logger.error(
+                "Failed to update document fields",
+                document_id=document_id,
+                error=str(e)
+            )
+            raise
+    
     async def get_user_documents(
         self,
         user_id: str,

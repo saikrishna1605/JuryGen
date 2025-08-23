@@ -1,53 +1,42 @@
 import { z } from 'zod';
-import { ProcessingStatus, ProcessingStage } from './document';
+import { Document } from './document';
 
-// Job-related enums
-export enum JobPriority {
-  LOW = 'low',
-  NORMAL = 'normal',
-  HIGH = 'high',
-  URGENT = 'urgent',
+// Enums
+export enum ProcessingStatus {
+  QUEUED = 'queued',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled',
 }
 
-export enum ErrorType {
-  VALIDATION_ERROR = 'validation_error',
-  UPLOAD_ERROR = 'upload_error',
-  OCR_ERROR = 'ocr_error',
-  ANALYSIS_ERROR = 'analysis_error',
-  AI_SERVICE_ERROR = 'ai_service_error',
-  STORAGE_ERROR = 'storage_error',
-  TIMEOUT_ERROR = 'timeout_error',
-  QUOTA_EXCEEDED = 'quota_exceeded',
-  INTERNAL_ERROR = 'internal_error',
+export enum ProcessingStage {
+  UPLOAD = 'upload',
+  OCR = 'ocr',
+  ANALYSIS = 'analysis',
+  SUMMARIZATION = 'summarization',
+  RISK_ASSESSMENT = 'risk_assessment',
+  TRANSLATION = 'translation',
+  AUDIO_GENERATION = 'audio_generation',
+  EXPORT_GENERATION = 'export_generation',
 }
 
-// Zod schemas
-export const JobOptionsSchema = z.object({
-  enableTranslation: z.boolean().default(true),
-  enableAudio: z.boolean().default(true),
-  targetLanguages: z.array(z.string()).default([]),
-  audioVoice: z.string().optional(),
-  readingLevel: z.enum(['elementary', 'middle', 'high', 'college']).default('middle'),
-  includeExplanations: z.boolean().default(true),
-  highlightRisks: z.boolean().default(true),
-});
-
-export const JobErrorSchema = z.object({
-  type: z.nativeEnum(ErrorType),
-  message: z.string(),
-  details: z.record(z.any()).optional(),
-  timestamp: z.string().datetime(),
-  retryable: z.boolean(),
-  retryCount: z.number().nonnegative().default(0),
-});
-
+// Zod schemas for validation
 export const JobProgressSchema = z.object({
   stage: z.nativeEnum(ProcessingStage),
-  percentage: z.number().min(0).max(100),
+  progress: z.number().min(0).max(100),
   message: z.string().optional(),
   estimatedTimeRemaining: z.number().positive().optional(),
   startedAt: z.string().datetime().optional(),
   completedAt: z.string().datetime().optional(),
+});
+
+export const JobResultsSchema = z.object({
+  documentId: z.string().uuid(),
+  processingTime: z.number().positive(),
+  stages: z.array(JobProgressSchema),
+  outputs: z.record(z.string(), z.any()),
+  metrics: z.record(z.string(), z.number()).optional(),
 });
 
 export const JobSchema = z.object({
@@ -56,141 +45,169 @@ export const JobSchema = z.object({
   userId: z.string(),
   status: z.nativeEnum(ProcessingStatus),
   currentStage: z.nativeEnum(ProcessingStage),
-  progressPercentage: z.number().min(0).max(100).default(0),
-  priority: z.nativeEnum(JobPriority).default(JobPriority.NORMAL),
-  options: JobOptionsSchema,
+  progressPercentage: z.number().min(0).max(100),
   createdAt: z.string().datetime(),
   startedAt: z.string().datetime().optional(),
   completedAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
+  errorMessage: z.string().optional(),
+  progressMessage: z.string().optional(),
   estimatedCompletion: z.string().datetime().optional(),
-  error: JobErrorSchema.optional(),
-  progress: z.array(JobProgressSchema).default([]),
-  retryCount: z.number().nonnegative().default(0),
-  maxRetries: z.number().nonnegative().default(3),
+  results: JobResultsSchema.optional(),
+  priority: z.number().min(1).max(4).default(2),
+  retryCount: z.number().min(0).default(0),
+  maxRetries: z.number().min(0).default(3),
 });
 
-export const JobResultsSchema = z.object({
-  jobId: z.string().uuid(),
-  documentId: z.string().uuid(),
-  completedAt: z.string().datetime(),
-  processingTime: z.number().positive(),
-  summary: z.object({
-    totalClauses: z.number().nonnegative(),
-    riskyClauses: z.number().nonnegative(),
-    cautionClauses: z.number().nonnegative(),
-    beneficialClauses: z.number().nonnegative(),
-    overallRiskScore: z.number().min(0).max(1),
-  }),
-  exports: z.object({
-    highlightedPdf: z.string().url().optional(),
-    summaryDocx: z.string().url().optional(),
-    clausesCsv: z.string().url().optional(),
-    audioNarration: z.string().url().optional(),
-    transcriptSrt: z.string().url().optional(),
-  }),
-  translations: z.record(z.string(), z.object({
-    summary: z.string(),
-    audioUrl: z.string().url().optional(),
-    confidence: z.number().min(0).max(1),
-  })),
-  metadata: z.object({
-    aiModelsUsed: z.array(z.string()),
-    processingCost: z.number().positive().optional(),
-    tokensUsed: z.number().positive().optional(),
-    apiCallsCount: z.number().positive().optional(),
-  }),
-});
-
-export const UploadRequestSchema = z.object({
-  filename: z.string().min(1).max(255),
-  contentType: z.string(),
-  sizeBytes: z.number().positive().max(50 * 1024 * 1024), // 50MB limit
-  jurisdiction: z.string().optional(),
-  userRole: z.string().optional(),
-  options: JobOptionsSchema.optional(),
-});
-
-export const UploadResponseSchema = z.object({
-  jobId: z.string().uuid(),
-  uploadUrl: z.string().url(),
-  expiresAt: z.string().datetime(),
-  maxFileSize: z.number().positive(),
-  allowedContentTypes: z.array(z.string()),
-});
-
-// Server-Sent Events schemas
-export const SSEEventSchema = z.object({
-  type: z.enum(['job_update', 'error', 'complete']),
-  data: z.record(z.any()),
-  timestamp: z.string().datetime(),
-  requestId: z.string().optional(),
-});
-
-export const JobUpdateEventSchema = z.object({
-  jobId: z.string().uuid(),
-  status: z.nativeEnum(ProcessingStatus),
-  stage: z.nativeEnum(ProcessingStage),
-  progress: z.number().min(0).max(100),
-  message: z.string().optional(),
-  estimatedCompletion: z.string().datetime().optional(),
-});
-
-// TypeScript types
-export type JobOptions = z.infer<typeof JobOptionsSchema>;
-export type JobError = z.infer<typeof JobErrorSchema>;
+// TypeScript types derived from schemas
 export type JobProgress = z.infer<typeof JobProgressSchema>;
-export type Job = z.infer<typeof JobSchema>;
 export type JobResults = z.infer<typeof JobResultsSchema>;
-export type UploadRequest = z.infer<typeof UploadRequestSchema>;
-export type UploadResponse = z.infer<typeof UploadResponseSchema>;
-export type SSEEvent = z.infer<typeof SSEEventSchema>;
-export type JobUpdateEvent = z.infer<typeof JobUpdateEventSchema>;
+export type Job = z.infer<typeof JobSchema>;
 
-// Helper types
-export interface JobStatistics {
-  totalJobs: number;
-  completedJobs: number;
-  failedJobs: number;
-  averageProcessingTime: number;
-  successRate: number;
+// Extended job type with document information
+export interface JobWithDocument extends Job {
+  document?: Document;
 }
 
+// Job creation request
+export interface CreateJobRequest {
+  documentId: string;
+  priority?: number;
+  options?: {
+    skipStages?: ProcessingStage[];
+    customSettings?: Record<string, any>;
+  };
+}
+
+// Job update request
+export interface UpdateJobRequest {
+  status?: ProcessingStatus;
+  currentStage?: ProcessingStage;
+  progressPercentage?: number;
+  progressMessage?: string;
+  errorMessage?: string;
+  estimatedCompletion?: string;
+}
+
+// Job query parameters
+export interface JobQueryParams {
+  status?: ProcessingStatus[];
+  userId?: string;
+  documentId?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: 'createdAt' | 'updatedAt' | 'priority';
+  sortOrder?: 'asc' | 'desc';
+}
+
+// Job statistics
+export interface JobStatistics {
+  total: number;
+  byStatus: Record<ProcessingStatus, number>;
+  byStage: Record<ProcessingStage, number>;
+  averageProcessingTime: number;
+  successRate: number;
+  recentJobs: Job[];
+}
+
+// Real-time job update event
+export interface JobUpdateEvent {
+  type: 'job_update';
+  jobId: string;
+  data: Partial<Job>;
+  timestamp: string;
+}
+
+// System message event
+export interface SystemMessageEvent {
+  type: 'system_message';
+  message: string;
+  messageType: 'info' | 'warning' | 'error';
+  timestamp: string;
+}
+
+// Connection status
+export interface ConnectionStatus {
+  isConnected: boolean;
+  lastUpdate?: Date;
+  error?: string;
+}
+
+// Job queue information
+export interface QueueInfo {
+  position: number;
+  estimatedWaitTime: number;
+  totalInQueue: number;
+}
+
+// Processing metrics
 export interface ProcessingMetrics {
   stage: ProcessingStage;
   duration: number;
-  tokensUsed?: number;
+  memoryUsage?: number;
+  cpuUsage?: number;
   apiCalls?: number;
-  cost?: number;
+  tokensProcessed?: number;
 }
 
-export interface JobQueue {
-  position: number;
-  estimatedWaitTime: number;
-  queueLength: number;
+// Error details
+export interface JobError {
+  code: string;
+  message: string;
+  stage: ProcessingStage;
+  timestamp: string;
+  details?: Record<string, any>;
+  retryable: boolean;
 }
 
-// Job creation helpers
-export const createJobOptions = (overrides?: Partial<JobOptions>): JobOptions => {
-  return JobOptionsSchema.parse({
-    enableTranslation: true,
-    enableAudio: true,
-    targetLanguages: [],
-    readingLevel: 'middle',
-    includeExplanations: true,
-    highlightRisks: true,
-    ...overrides,
-  });
-};
+// Job configuration
+export interface JobConfig {
+  timeout: number;
+  retryPolicy: {
+    maxRetries: number;
+    backoffMultiplier: number;
+    maxBackoffTime: number;
+  };
+  resources: {
+    memory: string;
+    cpu: string;
+  };
+  environment: Record<string, string>;
+}
 
-export const createUploadRequest = (
-  filename: string,
-  file: File,
-  options?: Partial<UploadRequest>
-): UploadRequest => {
-  return UploadRequestSchema.parse({
-    filename,
-    contentType: file.type,
-    sizeBytes: file.size,
-    ...options,
-  });
-};
+// Batch job operations
+export interface BatchJobRequest {
+  jobIds: string[];
+  action: 'cancel' | 'retry' | 'delete';
+}
+
+export interface BatchJobResponse {
+  successful: string[];
+  failed: Array<{
+    jobId: string;
+    error: string;
+  }>;
+}
+
+// Job export options
+export interface JobExportOptions {
+  format: 'json' | 'csv' | 'xlsx';
+  includeResults: boolean;
+  includeMetrics: boolean;
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  filters?: JobQueryParams;
+}
+
+// Webhook configuration for job events
+export interface JobWebhook {
+  id: string;
+  url: string;
+  events: Array<'job.created' | 'job.started' | 'job.completed' | 'job.failed'>;
+  secret: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

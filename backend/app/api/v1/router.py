@@ -35,6 +35,56 @@ try:
     )
 except ImportError:
     pass  # Upload endpoints not available in minimal mode
+
+# Include agents endpoints
+try:
+    from .endpoints import agents
+    api_router.include_router(
+        agents.router,
+        tags=["agents"]
+    )
+except ImportError:
+    pass  # Agents endpoints not available in minimal mode
+
+# Include streaming endpoints
+try:
+    from .endpoints import streaming
+    api_router.include_router(
+        streaming.router,
+        tags=["streaming"]
+    )
+except ImportError:
+    pass  # Streaming endpoints not available in minimal mode
+
+# Include speech endpoints
+try:
+    from .endpoints import speech
+    api_router.include_router(
+        speech.router,
+        tags=["speech"]
+    )
+except ImportError:
+    pass  # Speech endpoints not available in minimal mode
+
+# Include Q&A endpoints
+try:
+    from .endpoints import qa
+    api_router.include_router(
+        qa.router,
+        tags=["qa"]
+    )
+except ImportError:
+    pass  # Q&A endpoints not available in minimal mode
+
+# Include translation endpoints
+try:
+    from .endpoints import translation
+    api_router.include_router(
+        translation.router,
+        tags=["translation"]
+    )
+except ImportError:
+    pass  # Translation endpoints not available in minimal mode
 # 
 # api_router.include_router(
 #     jobs.router,
