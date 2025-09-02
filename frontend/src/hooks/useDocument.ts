@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ProcessedDocument } from '../types/document';
-import { api } from '../lib/api';
+import api from '../lib/api';
 
 interface UseDocumentResult {
   document: ProcessedDocument | null;

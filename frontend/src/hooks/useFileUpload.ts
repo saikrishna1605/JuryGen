@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { UploadRequest, UploadResponse, UploadProgress } from '../types';
+import { UploadUrlRequest, UploadUrlResponse, UploadProgress } from '../types';
 import { apiClient } from '../lib/api';
 
 interface UseFileUploadOptions {
   onProgress?: (progress: UploadProgress) => void;
-  onSuccess?: (response: UploadResponse) => void;
+  onSuccess?: (response: UploadUrlResponse) => void;
   onError?: (error: Error) => void;
 }
 
@@ -24,7 +24,7 @@ export const useFileUpload = (options: UseFileUploadOptions = {}) => {
 
   // Get signed upload URL
   const getUploadUrlMutation = useMutation({
-    mutationFn: async (request: UploadRequest): Promise<UploadResponse> => {
+    mutationFn: async (request: UploadUrlRequest): Promise<UploadUrlResponse> => {
       const response = await apiClient.post('/v1/upload', request);
       return response.data;
     },
@@ -121,7 +121,7 @@ export const useFileUpload = (options: UseFileUploadOptions = {}) => {
 
   // Main upload function
   const uploadFile = useCallback(
-    async (request: UploadRequest, file: File): Promise<UploadResponse> => {
+    async (request: UploadUrlRequest, file: File): Promise<UploadUrlResponse> => {
       try {
         // Reset state
         setUploadState({
@@ -181,7 +181,7 @@ export const useMultiFileUpload = (options: UseFileUploadOptions = {}) => {
   const [uploads, setUploads] = useState<Map<string, UploadState>>(new Map());
 
   const uploadFile = useCallback(
-    async (fileId: string, request: UploadRequest, file: File): Promise<UploadResponse> => {
+    async (fileId: string, request: UploadUrlRequest, file: File): Promise<UploadUrlResponse> => {
       // Initialize upload state
       setUploads(prev => new Map(prev.set(fileId, {
         isUploading: true,
@@ -192,7 +192,7 @@ export const useMultiFileUpload = (options: UseFileUploadOptions = {}) => {
       try {
         // Get signed upload URL
         const response = await apiClient.post('/v1/upload', request);
-        const uploadResponse: UploadResponse = response.data;
+        const uploadResponse: UploadUrlResponse = response.data;
 
         // Upload file with progress tracking
         await new Promise<void>((resolve, reject) => {

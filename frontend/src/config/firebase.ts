@@ -5,34 +5,70 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
 
-// Your web app's Firebase configuration
+// Firebase configuration - using production values directly
+
+// Your web app's Firebase configuration - hardcoded for now to resolve env loading issues
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-//   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyABU80Orp7q6rALHdorrWmXjZrFdRO7XKU",
+  authDomain: "kiro-hackathon23.firebaseapp.com",
+  projectId: "kiro-hackathon23",
+  storageBucket: "kiro-hackathon23.firebasestorage.app",
+  messagingSenderId: "1020803101475",
+  appId: "1:1020803101475:web:224afc3159e5941e719296",
+  measurementId: "G-VPZDRW0NGN",
 };
 
+// Debug: Log the configuration
+console.log('Firebase Config:', {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+  apiKey: firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 10)}...` : 'missing'
+});
+
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let storage: any = null;
+let analytics: any = null;
 
-// Initialize Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Initialize Firebase with real authentication
+try {
+  console.log('🔥 Initializing Firebase with production config...');
 
-// Initialize Analytics (optional)
-let analytics = null;
-if (typeof window !== 'undefined' && import.meta.env.VITE_ENABLE_ANALYTICS === 'true') {
-  try {
-    analytics = getAnalytics(app);
-  } catch (error) {
-    console.log('Analytics not available:', error);
+  // Initialize Firebase app
+  app = initializeApp(firebaseConfig);
+
+  // Initialize Firebase services
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+
+  // Initialize Analytics (optional) - disabled for now
+  // if (typeof window !== 'undefined') {
+  //   try {
+  //     analytics = getAnalytics(app);
+  //   } catch (error) {
+  //     console.log('Analytics not available:', error);
+  //   }
+  // }
+
+  console.log('✅ Firebase initialized successfully');
+  console.log('🔥 Using real Firebase authentication for project:', firebaseConfig.projectId);
+} catch (error) {
+  console.error('❌ Firebase initialization failed:', error);
+  
+  // This likely means Firebase Authentication isn't enabled
+  if (error.message.includes('auth')) {
+    console.error('🚨 Firebase Authentication may not be enabled in Firebase Console');
+    console.error('💡 Go to https://console.firebase.google.com/project/kiro-hackathon23/authentication');
+    console.error('💡 Click "Get started" and enable Email/Password authentication');
   }
+  
+  throw error; // Let the error bubble up so it's visible
 }
 
-export { analytics };
+// Export Firebase services for real authentication only
+
+export { auth, db, storage, analytics };
 export default app;

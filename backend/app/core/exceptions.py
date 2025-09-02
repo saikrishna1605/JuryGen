@@ -107,3 +107,13 @@ class NetworkError(LegalCompanionError):
 class TimeoutError(LegalCompanionError):
     """Raised when operations timeout."""
     pass
+
+
+class PIIDetectionError(LegalCompanionError):
+    """Raised when PII detection or masking fails."""
+    pass
+
+
+class JurisdictionAnalysisError(LegalCompanionError):
+    """Raised when jurisdiction analysis fails."""
+    pass

@@ -1,0 +1,217 @@
+# Docker Compose configuration for development environment
+# Includes hot reload, debugging tools, and development databases
+
+version: '3.8'
+
+services:
+  # Frontend development service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+      - VITE_FIREBASE_CONFIG=${VITE_FIREBASE_CONFIG}
+      - VITE_GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+    networks:
+      - dev-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # Backend development service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Debug port
+    volumes:
+      - ./backend:/app
+      - ./backend/logs:/app/logs
+      - ./backend/tmp:/app/tmp
+    environment:
+      - ENVIRONMENT=development
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-us-central1}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - FIRESTORE_DATABASE=${FIRESTORE_DATABASE:-default}
+      - FIREBASE_PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - LOG_LEVEL=DEBUG
+      - PYTHONPATH=/app
+    networks:
+      - dev-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    depends_on:
+      - redis-dev
+      - postgres-dev
+
+  # Redis for development
+  redis-dev:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - dev-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # PostgreSQL for development (alternative to Firestore for local testing)
+  postgres-dev:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ai_legal_companion_dev
+      - POSTGRES_USER=dev_user
+      - POSTGRES_PASSWORD=dev_password
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Mailhog for email testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # MinIO for S3-compatible storage testing
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - minio-data:/data
+    networks:
+      - dev-network
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+
+  # Create MinIO buckets
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    networks:
+      - dev-network
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin123;
+      /usr/bin/mc mb myminio/ai-legal-companion-dev;
+      /usr/bin/mc policy set public myminio/ai-legal-companion-dev;
+      exit 0;
+      "
+
+  # Elasticsearch for search functionality testing
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Kibana for Elasticsearch visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Web UI
+      - "14268:14268"  # HTTP collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Development database admin tool
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres-dev
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Redis admin tool
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis-dev:6379
+    depends_on:
+      - redis-dev
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+networks:
+  dev-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  redis-dev-data:
+    driver: local
+  postgres-dev-data:
+    driver: local
+  minio-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+  pgadmin-data:
+    driver: local

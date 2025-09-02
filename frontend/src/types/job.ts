@@ -69,14 +69,47 @@ export interface JobWithDocument extends Job {
   document?: Document;
 }
 
+// Job options schema
+export const JobOptionsSchema = z.object({
+  skipStages: z.array(z.nativeEnum(ProcessingStage)).optional(),
+  customSettings: z.record(z.string(), z.any()).optional(),
+  priority: z.number().min(1).max(4).optional(),
+  timeout: z.number().positive().optional(),
+  retryPolicy: z.object({
+    maxRetries: z.number().min(0).optional(),
+    backoffMultiplier: z.number().positive().optional(),
+    maxBackoffTime: z.number().positive().optional(),
+  }).optional(),
+});
+
+export type JobOptions = z.infer<typeof JobOptionsSchema>;
+
+// Helper function to create job options
+export const createJobOptions = (options: Partial<JobOptions> = {}): JobOptions => {
+  return {
+    priority: 2,
+    timeout: 300000, // 5 minutes default
+    ...options,
+  };
+};
+
+// Helper function to create upload request
+export const createUploadRequest = (
+  documentId: string,
+  options: Partial<JobOptions> = {}
+): CreateJobRequest => {
+  return {
+    documentId,
+    priority: options.priority || 2,
+    options: createJobOptions(options),
+  };
+};
+
 // Job creation request
 export interface CreateJobRequest {
   documentId: string;
   priority?: number;
-  options?: {
-    skipStages?: ProcessingStage[];
-    customSettings?: Record<string, any>;
-  };
+  options?: JobOptions;
 }
 
 // Job update request

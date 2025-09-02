@@ -1,9 +1,9 @@
 import React from 'react';
 import { DocumentUploader } from '../components/upload';
-import { UploadResponse } from '../types';
+import { UploadUrlResponse } from '../types';
 
 export const UploadPage: React.FC = () => {
-  const handleUploadComplete = (response: UploadResponse) => {
+  const handleUploadComplete = (response: UploadUrlResponse) => {
     console.log('Upload completed:', response);
     // Here you would typically navigate to a job status page or show a success message
   };

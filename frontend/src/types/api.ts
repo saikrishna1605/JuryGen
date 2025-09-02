@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { ProcessingStatus, ProcessingStage, ClauseClassification } from './document';
+import { ProcessingStatus, ProcessingStage } from './job';
+import { ClauseClassification } from './document';
 import { JobOptionsSchema } from './job';
 
 // API Response wrapper schemas

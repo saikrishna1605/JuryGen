@@ -1,0 +1,70 @@
+# Kubernetes namespace for AI Legal Companion
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-legal-companion
+  labels:
+    name: ai-legal-companion
+    environment: production
+    app: ai-legal-companion
+
+---
+# Resource quotas for the namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ai-legal-companion-quota
+  namespace: ai-legal-companion
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    persistentvolumeclaims: "10"
+    services: "10"
+    secrets: "20"
+    configmaps: "20"
+
+---
+# Network policies for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-legal-companion-network-policy
+  namespace: ai-legal-companion
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app: ai-legal-companion
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  - to:
+    - podSelector:
+        matchLabels:
+          app: ai-legal-companion

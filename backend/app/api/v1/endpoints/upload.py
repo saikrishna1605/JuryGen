@@ -11,7 +11,7 @@ from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
 
 from app.core.config import settings
-from app.core.security import get_current_user
+from app.core.security import require_auth
 from app.models.job import UploadRequest, UploadResponse, Job, JobOptions
 from app.models.document import Document
 from app.models.user import User
@@ -32,7 +32,7 @@ firestore_service = FirestoreService()
 @router.post("/upload", response_model=UploadResponse)
 async def create_upload_url(
     request: UploadRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(require_auth)
 ) -> UploadResponse:
     """
     Create a signed upload URL for document upload.
@@ -54,7 +54,7 @@ async def create_upload_url(
             filename=request.filename,
             content_type=request.content_type,
             size_bytes=request.size_bytes,
-            user_id=current_user.id,
+            user_id=current_user["uid"],
             jurisdiction=request.jurisdiction,
             user_role=request.user_role,
         )
@@ -64,12 +64,12 @@ async def create_upload_url(
         job = Job(
             id=job_id,
             document_id=document_id,
-            user_id=current_user.id,
+            user_id=current_user["uid"],
             options=job_options,
         )
         
         # Generate signed upload URL
-        blob_name = f"documents/{current_user.id}/{document_id}/{request.filename}"
+        blob_name = f"documents/{current_user["uid"]}/{document_id}/{request.filename}"
         upload_url = await storage_service.generate_signed_upload_url(
             blob_name=blob_name,
             content_type=request.content_type,
@@ -89,7 +89,7 @@ async def create_upload_url(
             "Upload URL created",
             job_id=str(job_id),
             document_id=str(document_id),
-            user_id=current_user.id,
+            user_id=current_user["uid"],
             filename=request.filename,
             size_bytes=request.size_bytes
         )
@@ -114,7 +114,7 @@ async def create_upload_url(
         logger.error(
             "Google Cloud error during upload URL creation",
             error=str(e),
-            user_id=current_user.id
+            user_id=current_user["uid"]
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -124,7 +124,7 @@ async def create_upload_url(
         logger.error(
             "Unexpected error during upload URL creation",
             error=str(e),
-            user_id=current_user.id,
+            user_id=current_user["uid"],
             exc_info=True
         )
         raise HTTPException(
@@ -136,7 +136,7 @@ async def create_upload_url(
 @router.post("/upload/{job_id}/complete")
 async def complete_upload(
     job_id: uuid.UUID,
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(require_auth)
 ) -> dict:
     """
     Mark upload as complete and trigger processing.
@@ -154,7 +154,7 @@ async def complete_upload(
             )
         
         # Verify job ownership
-        if job.user_id != current_user.id:
+        if job.user_id != current_user["uid"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied"
@@ -187,7 +187,7 @@ async def complete_upload(
             "Upload completed and processing started",
             job_id=str(job_id),
             document_id=str(job.document_id),
-            user_id=current_user.id
+            user_id=current_user["uid"]
         )
         
         return {
@@ -202,7 +202,7 @@ async def complete_upload(
         logger.error(
             "Error completing upload",
             job_id=str(job_id),
-            user_id=current_user.id,
+            user_id=current_user["uid"],
             error=str(e),
             exc_info=True
         )
@@ -214,7 +214,7 @@ async def complete_upload(
 
 @router.get("/upload/limits")
 async def get_upload_limits(
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(require_auth)
 ) -> dict:
     """
     Get upload limits and supported file types.

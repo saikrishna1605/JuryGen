@@ -179,13 +179,26 @@ class RealtimeStreamingService:
         self._listener_task = None
         self._shutdown_event = asyncio.Event()
         
-        # Start background tasks
-        self._start_background_tasks()
+        # Background tasks will be started when needed
+        self._cleanup_task = None
+        self._listener_task = None
+        self._tasks_started = False
     
     def _start_background_tasks(self):
         """Start background tasks for connection cleanup and listeners."""
-        self._cleanup_task = asyncio.create_task(self._cleanup_connections())
-        self._listener_task = asyncio.create_task(self._manage_firestore_listeners())
+        if not self._tasks_started:
+            try:
+                self._cleanup_task = asyncio.create_task(self._cleanup_connections())
+                self._listener_task = asyncio.create_task(self._manage_firestore_listeners())
+                self._tasks_started = True
+            except RuntimeError:
+                # No event loop running, tasks will be started later
+                pass
+    
+    async def _ensure_tasks_started(self):
+        """Ensure background tasks are started."""
+        if not self._tasks_started:
+            self._start_background_tasks()
     
     async def create_sse_stream(
         self,
@@ -204,6 +217,8 @@ class RealtimeStreamingService:
         Returns:
             StreamingResponse for SSE
         """
+        await self._ensure_tasks_started()
+        
         try:
             # Generate connection ID if not provided
             if not connection_id:

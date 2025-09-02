@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { translationService } from '../services/translationService';
-import { api } from '../lib/api';
+import api from '../lib/api';
 
 // Mock the API
 vi.mock('../lib/api', () => ({

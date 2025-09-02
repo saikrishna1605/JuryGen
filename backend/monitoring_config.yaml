@@ -1,0 +1,151 @@
+# Cloud Monitoring Configuration for AI Legal Companion
+# This file defines monitoring dashboards, alerts, and notification settings
+
+project_id: "${GOOGLE_CLOUD_PROJECT}"
+location: "${VERTEX_AI_LOCATION}"
+
+# Custom Metrics Configuration
+custom_metrics:
+  - name: "ai_legal_companion/health_status"
+    type: "gauge"
+    description: "Overall system health status (0=unhealthy, 1=healthy)"
+    unit: "1"
+    
+  - name: "ai_legal_companion/api_request_count"
+    type: "counter"
+    description: "Total number of API requests"
+    unit: "1"
+    labels:
+      - endpoint
+      - method
+      - status_code
+      
+  - name: "ai_legal_companion/error_rate"
+    type: "gauge"
+    description: "Error rate percentage"
+    unit: "1"
+    labels:
+      - error_type
+      - service
+      
+  - name: "ai_legal_companion/cpu_usage"
+    type: "gauge"
+    description: "CPU usage percentage"
+    unit: "%"
+    
+  - name: "ai_legal_companion/memory_usage"
+    type: "gauge"
+    description: "Memory usage percentage"
+    unit: "%"
+    
+  - name: "ai_legal_companion/document_processing_duration"
+    type: "gauge"
+    description: "Time taken to process documents"
+    unit: "s"
+    labels:
+      - document_type
+      - processing_stage
+      
+  - name: "ai_legal_companion/ai_model_latency"
+    type: "gauge"
+    description: "AI model response latency"
+    unit: "ms"
+    labels:
+      - model_name
+      - operation
+      
+  - name: "ai_legal_companion/active_users"
+    type: "gauge"
+    description: "Number of active users"
+    unit: "1"
+    
+  - name: "ai_legal_companion/storage_usage"
+    type: "gauge"
+    description: "Storage usage in GB"
+    unit: "GB"
+    labels:
+      - storage_type
+
+# Alert Thresholds
+alert_thresholds:
+  error_rate: 0.05  # 5%
+  cpu_usage: 80     # 80%
+  memory_usage: 85  # 85%
+  processing_duration: 300  # 5 minutes
+  ai_model_latency: 5000    # 5 seconds
+
+# Notification Settings
+notifications:
+  email:
+    enabled: true
+    addresses:
+      - "${ALERT_EMAIL}"
+  
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    
+  sms:
+    enabled: false
+
+# Dashboard Configuration
+dashboards:
+  system_health:
+    enabled: true
+    refresh_interval: "1m"
+    
+  performance:
+    enabled: true
+    refresh_interval: "5m"
+    
+  error_tracking:
+    enabled: true
+    refresh_interval: "1m"
+
+# Health Check Configuration
+health_checks:
+  interval: 60  # seconds
+  timeout: 30   # seconds
+  
+  endpoints:
+    - name: "api_health"
+      url: "/health"
+      expected_status: 200
+      
+    - name: "database_health"
+      type: "firestore"
+      
+    - name: "storage_health"
+      type: "cloud_storage"
+      
+    - name: "ai_services_health"
+      type: "vertex_ai"
+
+# Log Configuration
+logging:
+  level: "INFO"
+  structured: true
+  
+  retention_days: 30
+  
+  filters:
+    - name: "error_logs"
+      filter: 'severity >= "ERROR"'
+      
+    - name: "performance_logs"
+      filter: 'jsonPayload.type = "performance"'
+      
+    - name: "security_logs"
+      filter: 'jsonPayload.type = "security"'
+
+# Performance Monitoring
+performance:
+  sampling_rate: 0.1  # 10% of requests
+  
+  trace_endpoints:
+    - "/api/v1/documents/upload"
+    - "/api/v1/documents/analyze"
+    - "/api/v1/jobs/*"
+    - "/api/v1/voice/*"
+    
+  slow_request_threshold: 2000  # 2 seconds

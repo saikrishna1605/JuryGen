@@ -12,5 +12,18 @@ This module contains specialized agents for different aspects of legal document 
 
 from .ocr_agent import OCRAgent
 from .preprocessing import DocumentPreprocessor
+from .clause_analyzer import ClauseAnalyzerAgent
+from .summarizer_agent import SummarizerAgent
+from .risk_advisor import RiskAdvisorAgent
+from .translator_agent import TranslatorAgent
+from .jurisdiction_agent import JurisdictionDataAgent
 
-__all__ = ["OCRAgent", "DocumentPreprocessor"]
+__all__ = [
+    "OCRAgent", 
+    "DocumentPreprocessor", 
+    "ClauseAnalyzerAgent",
+    "SummarizerAgent",
+    "RiskAdvisorAgent", 
+    "TranslatorAgent",
+    "JurisdictionDataAgent"
+]

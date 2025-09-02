@@ -4,10 +4,12 @@ Base models and common utilities for Pydantic models.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Generic, TypeVar
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+T = TypeVar('T')
 
 
 class TimestampMixin(BaseModel):
@@ -204,11 +206,11 @@ class CommonValidators:
 
 
 # Response wrapper models
-class ApiResponse(BaseModel):
+class ApiResponse(BaseModel, Generic[T]):
     """Standard API response wrapper."""
     
     success: bool = True
-    data: Optional[Any] = None
+    data: Optional[T] = None
     message: Optional[str] = None
     error: Optional[str] = None
     request_id: Optional[str] = None

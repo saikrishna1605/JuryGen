@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Settings,
-  Eye,
   Type,
   Palette,
   Volume2,
@@ -23,13 +22,13 @@ import { cn } from '../../lib/utils';
 interface AccessibilityControlsProps {
   className?: string;
   compact?: boolean;
-  showLabels?: boolean;
+  onClose?: () => void;
 }
 
 export const AccessibilityControls: React.FC<AccessibilityControlsProps> = ({
   className,
   compact = false,
-  showLabels = true,
+  onClose,
 }) => {
   const {
     state,
@@ -96,7 +95,18 @@ export const AccessibilityControls: React.FC<AccessibilityControlsProps> = ({
         {isExpanded && (
           <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="p-4">
-              <h3 className="text-lg font-semibold mb-4">Accessibility Settings</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Accessibility Settings</h3>
+                {onClose && (
+                  <button
+                    onClick={onClose}
+                    className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                    aria-label="Close accessibility settings"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
               
               {/* Quick toggles */}
               <div className="grid grid-cols-2 gap-2 mb-4">

@@ -99,6 +99,7 @@ coverage/
 
 # Sensitive files
 backend/service-account.json
+backend/service-account-key.json
 backend/.env
 backend/.env.*
 !backend/.env.example

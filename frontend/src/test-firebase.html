@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Test</title>
+</head>
+<body>
+    <h1>Firebase Configuration Test</h1>
+    <div id="results"></div>
+    
+    <script type="module">
+        // Test Firebase configuration
+        const config = {
+            apiKey: "AIzaSyABU80Orp7q6rALHdorrWmXjZrFdRO7XKU",
+            authDomain: "kiro-hackathon23.firebaseapp.com",
+            projectId: "kiro-hackathon23",
+            storageBucket: "kiro-hackathon23.firebasestorage.app",
+            messagingSenderId: "1020803101475",
+            appId: "1:1020803101475:web:224afc3159e5941e719296",
+            measurementId: "G-VPZDRW0NGN"
+        };
+        
+        const results = document.getElementById('results');
+        
+        try {
+            // Import Firebase
+            const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+            const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+            
+            console.log('Testing Firebase config:', config);
+            results.innerHTML += '<p>✅ Firebase modules loaded</p>';
+            
+            // Initialize Firebase
+            const app = initializeApp(config);
+            results.innerHTML += '<p>✅ Firebase app initialized</p>';
+            
+            // Test Auth
+            const auth = getAuth(app);
+            results.innerHTML += '<p>✅ Firebase Auth initialized</p>';
+            
+            results.innerHTML += '<p><strong>🎉 Firebase configuration is working!</strong></p>';
+            
+        } catch (error) {
+            console.error('Firebase test failed:', error);
+            results.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+            
+            if (error.message.includes('api-key-not-valid')) {
+                results.innerHTML += '<p>🔍 API Key issue detected. Possible causes:</p>';
+                results.innerHTML += '<ul>';
+                results.innerHTML += '<li>API key might be restricted to specific domains</li>';
+                results.innerHTML += '<li>Firebase project might be suspended</li>';
+                results.innerHTML += '<li>API key might have been regenerated</li>';
+                results.innerHTML += '</ul>';
+            }
+        }
+    </script>
+</body>
+</html>

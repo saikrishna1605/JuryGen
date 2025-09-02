@@ -69,6 +69,24 @@ class Settings(BaseSettings):
     TRANSLATION_PROJECT_ID: Optional[str] = Field(default=None)
     TTS_VOICE_NAME: str = Field(default="en-US-Neural2-F")
     
+    # BigQuery Configuration for Legal Data
+    BIGQUERY_DATASET_ID: str = Field(default="legal_data")
+    BIGQUERY_STATUTES_TABLE: str = Field(default="statutes")
+    BIGQUERY_REGULATIONS_TABLE: str = Field(default="regulations")
+    BIGQUERY_PRECEDENTS_TABLE: str = Field(default="precedents")
+    BIGQUERY_LOCATION: str = Field(default="US")
+    
+    # Cloud DLP Configuration for PII Detection
+    DLP_PROJECT_ID: Optional[str] = Field(default=None)
+    DLP_LOCATION: str = Field(default="global")
+    DLP_TEMPLATE_ID: Optional[str] = Field(default=None)
+    DLP_JOB_TRIGGER_ID: Optional[str] = Field(default=None)
+    
+    # PII Detection Settings
+    PII_CONFIDENCE_THRESHOLD: float = Field(default=0.7, ge=0.0, le=1.0)
+    PII_MASKING_CHARACTER: str = Field(default="*")
+    ENABLE_PII_AUDIT_LOGGING: bool = Field(default=True)
+    
     # Rate Limiting
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = Field(default=60)
     RATE_LIMIT_BURST: int = Field(default=10)
@@ -103,6 +121,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
     
     @property
     def is_development(self) -> bool:

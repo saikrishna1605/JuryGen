@@ -3,12 +3,12 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, AlertCircle, CheckCircle, X, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { UploadRequest, JobOptions, UserRole, UploadResponse } from '../../types';
-import { createUploadRequest, createJobOptions } from '../../types/job';
+import { UploadUrlRequest, JobOptions, UserRole, UploadUrlResponse } from '../../types';
+import { createJobOptions } from '../../types/job';
 import { useMultiFileUpload } from '../../hooks/useFileUpload';
 
 interface DocumentUploaderProps {
-  onUploadComplete?: (response: UploadResponse) => void;
+  onUploadComplete?: (response: UploadUrlResponse) => void;
   onError?: (error: string) => void;
   className?: string;
   disabled?: boolean;
@@ -107,11 +107,14 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           )
         );
 
-        const uploadRequest = createUploadRequest(file.name, file, {
+        const uploadRequest: UploadUrlRequest = {
+          filename: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+          options: jobOptions,
           jurisdiction: jurisdiction || undefined,
           userRole: userRole || undefined,
-          options: jobOptions,
-        });
+        };
 
         const result = await multiUpload.uploadFile(file.id, uploadRequest, file);
 
@@ -241,9 +244,15 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           <label className="flex items-center">
             <input
               type="checkbox"
-              checked={jobOptions.enableTranslation}
+              checked={jobOptions.customSettings?.enableTranslation || false}
               onChange={(e) =>
-                setJobOptions((prev) => ({ ...prev, enableTranslation: e.target.checked }))
+                setJobOptions((prev) => ({ 
+                  ...prev, 
+                  customSettings: { 
+                    ...prev.customSettings, 
+                    enableTranslation: e.target.checked 
+                  } 
+                }))
               }
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               disabled={disabled}
@@ -254,9 +263,15 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           <label className="flex items-center">
             <input
               type="checkbox"
-              checked={jobOptions.enableAudio}
+              checked={jobOptions.customSettings?.enableAudio || false}
               onChange={(e) =>
-                setJobOptions((prev) => ({ ...prev, enableAudio: e.target.checked }))
+                setJobOptions((prev) => ({ 
+                  ...prev, 
+                  customSettings: { 
+                    ...prev.customSettings, 
+                    enableAudio: e.target.checked 
+                  } 
+                }))
               }
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               disabled={disabled}
@@ -267,9 +282,15 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           <label className="flex items-center">
             <input
               type="checkbox"
-              checked={jobOptions.highlightRisks}
+              checked={jobOptions.customSettings?.highlightRisks || false}
               onChange={(e) =>
-                setJobOptions((prev) => ({ ...prev, highlightRisks: e.target.checked }))
+                setJobOptions((prev) => ({ 
+                  ...prev, 
+                  customSettings: { 
+                    ...prev.customSettings, 
+                    highlightRisks: e.target.checked 
+                  } 
+                }))
               }
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               disabled={disabled}
@@ -283,11 +304,14 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
             </label>
             <select
               id="readingLevel"
-              value={jobOptions.readingLevel}
+              value={jobOptions.customSettings?.readingLevel || 'college'}
               onChange={(e) =>
                 setJobOptions((prev) => ({
                   ...prev,
-                  readingLevel: e.target.value as JobOptions['readingLevel'],
+                  customSettings: { 
+                    ...prev.customSettings, 
+                    readingLevel: e.target.value 
+                  }
                 }))
               }
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"

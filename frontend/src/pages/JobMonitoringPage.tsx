@@ -4,7 +4,7 @@ import { ArrowLeft, RefreshCw, Trash2, Download, Share2 } from 'lucide-react';
 import { RealTimeStatusDisplay, JobStatusCard } from '../components/progress';
 import { Job, ProcessingStatus } from '../types/job';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { cn } from '../lib/utils';
 
 interface JobMonitoringPageProps {

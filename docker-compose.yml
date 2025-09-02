@@ -1,0 +1,186 @@
+# Docker Compose configuration for AI Legal Companion
+# Production-ready setup with all services
+
+version: '3.8'
+
+services:
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - BUILD_ENV=production
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+        - VITE_FIREBASE_CONFIG=${VITE_FIREBASE_CONFIG}
+        - VITE_GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=production
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - BUILD_ENV=production
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-us-central1}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - FIRESTORE_DATABASE=${FIRESTORE_DATABASE:-default}
+      - FIREBASE_PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:80}
+      - SECRET_KEY=${SECRET_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./backend/tmp:/app/tmp
+      - google-cloud-credentials:/app/credentials:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Nginx load balancer (for multiple backend instances)
+  nginx-lb:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-lb.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:443/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Grafana for monitoring dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - app-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Log aggregation with Fluentd
+  fluentd:
+    build:
+      context: ./logging
+      dockerfile: Dockerfile
+    volumes:
+      - ./logging/fluent.conf:/fluentd/etc/fluent.conf:ro
+      - ./backend/logs:/var/log/backend:ro
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  google-cloud-credentials:
+    external: true

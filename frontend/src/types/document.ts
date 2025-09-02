@@ -1,23 +1,5 @@
 import { z } from 'zod';
-
-// Enums
-export enum ProcessingStatus {
-  QUEUED = 'queued',
-  PROCESSING = 'processing',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-}
-
-export enum ProcessingStage {
-  UPLOAD = 'upload',
-  OCR = 'ocr',
-  ANALYSIS = 'analysis',
-  SUMMARIZATION = 'summarization',
-  RISK_ASSESSMENT = 'risk_assessment',
-  TRANSLATION = 'translation',
-  AUDIO_GENERATION = 'audio_generation',
-  EXPORT_GENERATION = 'export_generation',
-}
+import { ProcessingStatus, ProcessingStage } from './job';
 
 export enum ClauseClassification {
   BENEFICIAL = 'beneficial',

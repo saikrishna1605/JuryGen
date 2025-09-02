@@ -1,13 +1,19 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AccessibilityProvider } from './contexts/AccessibilityContext'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { UploadPage } from './pages/UploadPage'
+import { SkipNavigation, AccessibilityControls } from './components/accessibility'
+import FirebaseTest from './components/FirebaseTest'
+import { Settings } from 'lucide-react'
+import { useState } from 'react'
 import './App.css'
 
 // Navigation component with auth state
 const Navigation = () => {
   const { currentUser, logout } = useAuth();
+  const [showAccessibilityControls, setShowAccessibilityControls] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -18,28 +24,81 @@ const Navigation = () => {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav id="navigation" className="bg-white shadow-sm border-b" role="navigation" aria-label="Main navigation">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-xl font-bold text-gray-900">
+            <Link 
+              to="/" 
+              className="text-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+              aria-label="Legal Companion - Home"
+            >
               Legal Companion
             </Link>
           </div>
           <div className="flex items-center space-x-4">
-            <Link to="/" className="text-gray-700 hover:text-gray-900">Home</Link>
-            <Link to="/about" className="text-gray-700 hover:text-gray-900">About</Link>
+            <Link 
+              to="/" 
+              className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+            >
+              Home
+            </Link>
+            <Link 
+              to="/about" 
+              className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+            >
+              About
+            </Link>
+            <Link 
+              to="/firebase-test" 
+              className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+            >
+              Firebase Test
+            </Link>
+            
+            {/* Accessibility Controls Toggle */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAccessibilityControls(!showAccessibilityControls)}
+                className="p-2 text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md"
+                aria-label="Toggle accessibility settings"
+                aria-expanded={showAccessibilityControls}
+                aria-haspopup="true"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+              
+              {showAccessibilityControls && (
+                <div className="absolute right-0 top-full mt-2 z-50">
+                  <AccessibilityControls 
+                    compact={true}
+                    onClose={() => setShowAccessibilityControls(false)}
+                  />
+                </div>
+              )}
+            </div>
+
             {currentUser ? (
               <>
-                <Link to="/dashboard" className="text-gray-700 hover:text-gray-900">Dashboard</Link>
-                <Link to="/upload" className="text-gray-700 hover:text-gray-900">Upload</Link>
+                <Link 
+                  to="/dashboard" 
+                  className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  to="/upload" 
+                  className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                >
+                  Upload
+                </Link>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-600">
                     {currentUser.displayName || currentUser.email || 'User'}
                   </span>
                   <button
                     onClick={handleLogout}
-                    className="text-sm text-red-600 hover:text-red-500"
+                    className="text-sm text-red-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-md px-2 py-1"
                   >
                     Sign Out
                   </button>
@@ -48,7 +107,7 @@ const Navigation = () => {
             ) : (
               <Link
                 to="/login"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
               >
                 Sign In
               </Link>
@@ -65,7 +124,7 @@ const HomePage = () => {
   const { currentUser } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <main id="main-content" className="min-h-screen bg-gray-50 flex items-center justify-center" role="main">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
@@ -76,7 +135,7 @@ const HomePage = () => {
           </p>
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-2">🚀 Getting Started</h3>
+              <h2 className="font-semibold text-blue-900 mb-2">🚀 Getting Started</h2>
               <p className="text-blue-700 text-sm">
                 {currentUser 
                   ? 'Go to your dashboard to upload and analyze legal documents'
@@ -85,25 +144,26 @@ const HomePage = () => {
               </p>
             </div>
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h3 className="font-semibold text-green-900 mb-2">✨ Features</h3>
-              <ul className="text-green-700 text-sm space-y-1">
-                <li>• Multi-modal document processing</li>
-                <li>• Intelligent clause analysis</li>
-                <li>• Voice-to-voice Q&A</li>
-                <li>• Multi-language support</li>
+              <h2 className="font-semibold text-green-900 mb-2">✨ Features</h2>
+              <ul className="text-green-700 text-sm space-y-1" role="list">
+                <li role="listitem">• Multi-modal document processing</li>
+                <li role="listitem">• Intelligent clause analysis</li>
+                <li role="listitem">• Voice-to-voice Q&A</li>
+                <li role="listitem">• Multi-language support</li>
+                <li role="listitem">• Accessibility-first design</li>
               </ul>
             </div>
             {currentUser ? (
               <Link
                 to="/dashboard"
-                className="block w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-center"
+                className="block w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors text-center"
               >
                 Go to Dashboard
               </Link>
             ) : (
               <Link
                 to="/login"
-                className="block w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-center"
+                className="block w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors text-center"
               >
                 Get Started
               </Link>
@@ -111,12 +171,12 @@ const HomePage = () => {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 
 const AboutPage = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  <main id="main-content" className="min-h-screen bg-gray-50 flex items-center justify-center" role="main">
     <div className="max-w-2xl w-full bg-white rounded-lg shadow-md p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-6">About Legal Companion</h1>
       <div className="prose prose-gray max-w-none">
@@ -125,41 +185,67 @@ const AboutPage = () => (
           by transforming them into accessible, actionable guidance.
         </p>
         <h2>Key Features:</h2>
-        <ul>
-          <li><strong>Multi-Modal Processing:</strong> Upload PDFs, images, DOCX, and scanned documents</li>
-          <li><strong>Intelligent Analysis:</strong> AI-powered risk assessment with role-specific analysis</li>
-          <li><strong>Plain Language:</strong> Convert legal jargon to accessible language</li>
-          <li><strong>Voice Interface:</strong> Ask questions using voice and receive spoken responses</li>
-          <li><strong>Privacy-First:</strong> End-to-end encryption and PII protection</li>
+        <ul role="list">
+          <li role="listitem"><strong>Multi-Modal Processing:</strong> Upload PDFs, images, DOCX, and scanned documents</li>
+          <li role="listitem"><strong>Intelligent Analysis:</strong> AI-powered risk assessment with role-specific analysis</li>
+          <li role="listitem"><strong>Plain Language:</strong> Convert legal jargon to accessible language</li>
+          <li role="listitem"><strong>Voice Interface:</strong> Ask questions using voice and receive spoken responses</li>
+          <li role="listitem"><strong>Privacy-First:</strong> End-to-end encryption and PII protection</li>
+          <li role="listitem"><strong>Accessibility-First:</strong> Full keyboard navigation, screen reader support, and customizable themes</li>
         </ul>
         <h2>Powered by Google Cloud AI:</h2>
-        <ul>
-          <li><strong>Vertex AI:</strong> Advanced language models for analysis</li>
-          <li><strong>Document AI:</strong> Intelligent document processing</li>
-          <li><strong>Translation API:</strong> Support for 100+ languages</li>
-          <li><strong>Speech Services:</strong> Voice-to-voice interactions</li>
+        <ul role="list">
+          <li role="listitem"><strong>Vertex AI:</strong> Advanced language models for analysis</li>
+          <li role="listitem"><strong>Document AI:</strong> Intelligent document processing</li>
+          <li role="listitem"><strong>Translation API:</strong> Support for 100+ languages</li>
+          <li role="listitem"><strong>Speech Services:</strong> Voice-to-voice interactions</li>
+        </ul>
+        <h2>Accessibility Features:</h2>
+        <ul role="list">
+          <li role="listitem"><strong>Theme Options:</strong> Light, dark, and high-contrast themes</li>
+          <li role="listitem"><strong>Typography Controls:</strong> Adjustable font size, family, and spacing</li>
+          <li role="listitem"><strong>Motion Controls:</strong> Reduced motion options for vestibular disorders</li>
+          <li role="listitem"><strong>Screen Reader Support:</strong> Full ARIA implementation and announcements</li>
+          <li role="listitem"><strong>Keyboard Navigation:</strong> Complete keyboard accessibility</li>
+          <li role="listitem"><strong>Dyslexia Support:</strong> Dyslexia-friendly fonts and spacing</li>
         </ul>
       </div>
     </div>
-  </div>
+  </main>
 );
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Navigation />
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/upload" element={<UploadPage />} />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+    <AccessibilityProvider>
+      <AuthProvider>
+        <Router>
+          <div className="App">
+            <SkipNavigation />
+            <Navigation />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/firebase-test" element={<FirebaseTest />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/upload" element={<UploadPage />} />
+            </Routes>
+            <footer id="footer" className="bg-gray-800 text-white py-8 mt-auto" role="contentinfo">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="text-center">
+                  <p className="text-sm text-gray-300">
+                    © 2024 Legal Companion. Built with accessibility in mind.
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Powered by Google Cloud AI • Privacy-First Design • WCAG 2.1 AA Compliant
+                  </p>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </Router>
+      </AuthProvider>
+    </AccessibilityProvider>
   )
 }
 

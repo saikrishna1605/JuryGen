@@ -25,6 +25,7 @@ from .ocr_agent import OCRAgent
 from .clause_analyzer import ClauseAnalyzerAgent
 from .summarizer_agent import SummarizerAgent
 from .risk_advisor import RiskAdvisorAgent
+from .jurisdiction_agent import JurisdictionDataAgent
 from ..services.vector_search import VectorSearchService
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ class LegalAnalysisCrew:
         self.clause_analyzer = ClauseAnalyzerAgent()
         self.summarizer_agent = SummarizerAgent()
         self.risk_advisor = RiskAdvisorAgent()
+        self.jurisdiction_agent = JurisdictionDataAgent()
         self.vector_search = VectorSearchService()
         
         # Agent registry
@@ -100,6 +102,13 @@ class LegalAnalysisCrew:
                 "goal": "Assess risks and provide actionable recommendations for legal documents",
                 "backstory": "Senior legal consultant with expertise in risk management and contract negotiation",
                 "capabilities": ["risk_assessment", "safer_alternatives", "negotiation_advice", "red_flag_detection"]
+            },
+            "jurisdiction_specialist": {
+                "agent": self.jurisdiction_agent,
+                "role": "Jurisdiction Legal Specialist",
+                "goal": "Provide jurisdiction-specific legal context and compliance analysis",
+                "backstory": "Legal expert with comprehensive knowledge of multi-jurisdictional law and regulatory compliance",
+                "capabilities": ["jurisdiction_analysis", "legal_database_queries", "compliance_checking", "conflict_resolution"]
             }
         }
         
@@ -175,7 +184,19 @@ class LegalAnalysisCrew:
                 }
             ),
             
-            # Task 2: Clause Analysis and Classification
+            # Task 2: Jurisdiction Context Analysis (if jurisdiction specified)
+            AgentTask(
+                task_id="jurisdiction_context",
+                agent_name="jurisdiction_specialist",
+                description="Gather jurisdiction-specific legal context and applicable laws",
+                inputs={
+                    "jurisdiction": jurisdiction,
+                    "user_role": user_role
+                },
+                dependencies=["ocr_extraction"] if jurisdiction else []
+            ) if jurisdiction else None,
+            
+            # Task 3: Clause Analysis and Classification
             AgentTask(
                 task_id="clause_analysis",
                 agent_name="clause_analyzer",
@@ -184,10 +205,22 @@ class LegalAnalysisCrew:
                     "user_role": user_role,
                     "jurisdiction": jurisdiction
                 },
-                dependencies=["ocr_extraction"]
+                dependencies=["ocr_extraction"] + (["jurisdiction_context"] if jurisdiction else [])
             ),
             
-            # Task 3: Vector Indexing (parallel with summarization)
+            # Task 4: Jurisdiction Compliance Analysis (if jurisdiction specified)
+            AgentTask(
+                task_id="jurisdiction_compliance",
+                agent_name="jurisdiction_specialist",
+                description="Analyze clauses for jurisdiction-specific compliance issues",
+                inputs={
+                    "jurisdiction": jurisdiction,
+                    "user_role": user_role
+                },
+                dependencies=["clause_analysis", "jurisdiction_context"]
+            ) if jurisdiction else None,
+            
+            # Task 5: Vector Indexing (parallel with summarization)
             AgentTask(
                 task_id="vector_indexing",
                 agent_name="vector_search",
@@ -196,7 +229,7 @@ class LegalAnalysisCrew:
                 dependencies=["clause_analysis"]
             ),
             
-            # Task 4: Document Summarization
+            # Task 6: Document Summarization
             AgentTask(
                 task_id="summarization",
                 agent_name="summarizer",
@@ -205,10 +238,10 @@ class LegalAnalysisCrew:
                     "user_role": user_role,
                     "jurisdiction": jurisdiction
                 },
-                dependencies=["clause_analysis"]
+                dependencies=["clause_analysis"] + (["jurisdiction_context"] if jurisdiction else [])
             ),
             
-            # Task 5: Risk Assessment and Advisory
+            # Task 7: Risk Assessment and Advisory
             AgentTask(
                 task_id="risk_assessment",
                 agent_name="risk_advisor",
@@ -218,9 +251,12 @@ class LegalAnalysisCrew:
                     "jurisdiction": jurisdiction,
                     "document_type": None  # Will be determined from summarization
                 },
-                dependencies=["clause_analysis", "summarization"]
+                dependencies=["clause_analysis", "summarization"] + (["jurisdiction_compliance"] if jurisdiction else [])
             )
         ]
+        
+        # Filter out None tasks (when jurisdiction is not specified)
+        tasks = [task for task in tasks if task is not None]
         
         return tasks
     
@@ -375,12 +411,64 @@ class LegalAnalysisCrew:
             summary = inputs.get("summarization_result")
             document_type = summary.document_type if summary else None
             
+            # Include jurisdiction compliance results if available
+            jurisdiction_compliance = inputs.get("jurisdiction_compliance_result")
+            
             return await agent.assess_document_risk(
                 clauses,
                 inputs["user_role"],
                 inputs.get("jurisdiction"),
-                document_type
+                document_type,
+                jurisdiction_compliance
             )
+        
+        elif agent_name == "jurisdiction_specialist":
+            # Determine which jurisdiction task to execute based on available inputs
+            if "ocr_extraction_result" in inputs and "clause_analysis_result" not in inputs:
+                # Task: Get jurisdiction context (early in pipeline)
+                ocr_result = inputs.get("ocr_extraction_result")
+                legal_area = None
+                clause_text = None
+                
+                if ocr_result:
+                    # Extract a sample of text for legal area determination
+                    clause_text = ocr_result.text[:2000] if len(ocr_result.text) > 2000 else ocr_result.text
+                
+                return await agent.get_jurisdiction_context(
+                    inputs["jurisdiction"],
+                    legal_area,
+                    clause_text
+                )
+            else:
+                # Task: Analyze jurisdiction compliance (after clause analysis)
+                clauses = inputs["clause_analysis_result"]
+                jurisdiction_context = inputs.get("jurisdiction_context_result")
+                
+                # Analyze each clause for compliance
+                compliance_results = []
+                for clause in clauses[:10]:  # Limit to first 10 clauses for performance
+                    try:
+                        compliance = await agent.analyze_clause_jurisdiction_compliance(
+                            clause,
+                            inputs["jurisdiction"],
+                            inputs["user_role"]
+                        )
+                        compliance_results.append({
+                            "clause_id": getattr(clause, 'id', None),
+                            "clause_text": clause.text[:200] + "..." if len(clause.text) > 200 else clause.text,
+                            "compliance": compliance
+                        })
+                    except Exception as e:
+                        logger.warning(f"Compliance analysis failed for clause: {str(e)}")
+                        continue
+                
+                return {
+                    "jurisdiction": inputs["jurisdiction"],
+                    "jurisdiction_context": jurisdiction_context,
+                    "clause_compliance": compliance_results,
+                    "total_clauses_analyzed": len(compliance_results),
+                    "analysis_timestamp": datetime.utcnow().isoformat()
+                }
         
         else:
             raise WorkflowError(f"Unknown agent task execution for: {agent_name}")
@@ -389,7 +477,9 @@ class LegalAnalysisCrew:
         """Map task ID to processing stage."""
         stage_mapping = {
             "ocr_extraction": ProcessingStage.OCR,
+            "jurisdiction_context": ProcessingStage.ANALYSIS,
             "clause_analysis": ProcessingStage.ANALYSIS,
+            "jurisdiction_compliance": ProcessingStage.ANALYSIS,
             "vector_indexing": ProcessingStage.ANALYSIS,
             "summarization": ProcessingStage.SUMMARIZATION,
             "risk_assessment": ProcessingStage.RISK_ASSESSMENT

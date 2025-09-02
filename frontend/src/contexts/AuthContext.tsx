@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const handleAuthError = (error: any) => {
     console.error('Auth error:', error);
-    
+
     // Map Firebase error codes to user-friendly messages
     const errorMessages: { [key: string]: string } = {
       'auth/user-not-found': 'No account found with this email address.',
@@ -62,9 +62,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       'auth/network-request-failed': 'Network error. Please check your connection.',
       'auth/popup-closed-by-user': 'Sign-in was cancelled.',
       'auth/cancelled-popup-request': 'Sign-in was cancelled.',
+      'auth/api-key-not-valid': 'Firebase configuration error. Please check your API key.',
+      'auth/configuration-not-found': 'Firebase Authentication is not enabled. Please enable it in Firebase Console.',
+      'auth/project-not-found': 'Firebase project not found. Please check your project configuration.',
     };
 
-    const message = errorMessages[error.code] || error.message || 'An unexpected error occurred.';
+    let message = errorMessages[error.code] || error.message || 'An unexpected error occurred.';
+
+    // Add helpful guidance for common setup issues
+    if (error.code === 'auth/api-key-not-valid') {
+      message += ' Go to Firebase Console → Project Settings to verify your API key.';
+    } else if (error.code === 'auth/configuration-not-found') {
+      message += ' Go to Firebase Console → Authentication → Get started to enable authentication.';
+    }
+
     setError(message);
   };
 
@@ -85,11 +96,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
+
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      
+
       // Update user profile with display name
       await updateProfile(user, { displayName });
-      
+
       // Refresh the user object to get updated profile
       await user.reload();
       setCurrentUser(auth.currentUser);
@@ -105,6 +117,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
+
       const provider = new GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
