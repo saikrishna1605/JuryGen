@@ -33,7 +33,6 @@ interface JobUpdate {
 export const RealTimeStatusDisplay: React.FC<RealTimeStatusDisplayProps> = ({
   jobId,
   apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
-  authToken,
   onJobComplete,
   onJobError,
   className,
@@ -54,9 +53,9 @@ export const RealTimeStatusDisplay: React.FC<RealTimeStatusDisplayProps> = ({
 
   // Calculate estimated time remaining
   const calculateEstimatedTime = useCallback((job: Job) => {
-    if (!job.estimated_completion) return null;
+    if (!job.estimatedCompletion) return null;
     
-    const completionTime = new Date(job.estimated_completion);
+    const completionTime = new Date(job.estimatedCompletion);
     const now = new Date();
     const remainingMs = completionTime.getTime() - now.getTime();
     
@@ -101,23 +100,27 @@ export const RealTimeStatusDisplay: React.FC<RealTimeStatusDisplayProps> = ({
         console.log('🔄 Job update:', jobData);
         
         // Update job state
-        setJob(prevJob => ({
-          ...prevJob,
+        const updatedJob = {
+          ...job,
           id: jobData.id,
           status: jobData.status,
-          currentStage: jobData.current_stage,
-          progressPercentage: jobData.progress_percentage,
+          currentStage: jobData.current_stage || job?.currentStage,
+          progressPercentage: jobData.progress_percentage || job?.progressPercentage || 0,
           errorMessage: jobData.error_message,
           estimatedCompletion: jobData.estimated_completion,
           progressMessage: jobData.progress_message,
           updatedAt: new Date().toISOString(),
-        } as Job));
+          documentId: job?.documentId || '',
+          userId: job?.userId || '',
+          createdAt: job?.createdAt || new Date().toISOString(),
+        } as Job;
 
+        setJob(updatedJob);
         setLastUpdate(new Date());
 
         // Handle job completion
         if (jobData.status === ProcessingStatus.COMPLETED) {
-          onJobComplete?.(jobData as Job);
+          onJobComplete?.(updatedJob);
         } else if (jobData.status === ProcessingStatus.FAILED) {
           onJobError?.(jobData.error_message || 'Job processing failed');
         }
@@ -296,7 +299,7 @@ export const RealTimeStatusDisplay: React.FC<RealTimeStatusDisplayProps> = ({
           status={job.status}
           progress={job.progressPercentage}
           error={job.errorMessage}
-          estimatedTimeRemaining={calculateEstimatedTime(job)}
+          estimatedTimeRemaining={calculateEstimatedTime(job) || undefined}
         />
       )}
 

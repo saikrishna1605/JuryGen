@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, Download, Share2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Download, Share2 } from 'lucide-react';
 import { RealTimeStatusDisplay, JobStatusCard } from '../components/progress';
 import { Job, ProcessingStatus } from '../types/job';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,7 +21,7 @@ export const JobMonitoringPage: React.FC<JobMonitoringPageProps> = ({
 }) => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+
   
   const [job, setJob] = useState<Job | null>(null);
   const [isLoading, setIsLoading] = useState(true);

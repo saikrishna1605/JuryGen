@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Button, 
@@ -73,7 +73,7 @@ const PIIRedactionTool: React.FC<PIIRedactionToolProps> = ({
   const [loading, setLoading] = useState(false);
   const [maskingConfig, setMaskingConfig] = useState<MaskingConfig>({});
   const [showPreview, setShowPreview] = useState(false);
-  const [maskedContent, setMaskedContent] = useState('');
+
   const [selectedFindings, setSelectedFindings] = useState<Set<number>>(new Set());
 
   // Load PII preview when dialog opens
@@ -150,7 +150,6 @@ const PIIRedactionTool: React.FC<PIIRedactionToolProps> = ({
       }
 
       const result = await response.json();
-      setMaskedContent(result.masked_content);
       onRedactionComplete(result.masked_content, result.findings);
 
     } catch (error) {

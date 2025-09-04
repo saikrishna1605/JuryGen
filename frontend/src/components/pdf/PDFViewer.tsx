@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { ZoomIn, ZoomOut, RotateCw, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Clause, ClauseClassification, ClauseHighlight } from '../../types/document';
+import { Clause, ClauseClassification } from '../../types/document';
 import { cn } from '../../lib/utils';
 
 // Set up PDF.js worker

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Languages, Globe, CheckCircle, AlertCircle, Loader2, Download, Eye, EyeOff } from 'lucide-react';
+import { Languages, Globe, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { translationService, TranslationResult, SupportedLanguage } from '../../services/translationService';
 import { cn } from '../../lib/utils';
 
@@ -21,7 +21,6 @@ interface TranslationState {
 }
 
 export const TranslationPanel: React.FC<TranslationPanelProps> = ({
-    documentId,
     originalText,
     onTranslationComplete,
     className

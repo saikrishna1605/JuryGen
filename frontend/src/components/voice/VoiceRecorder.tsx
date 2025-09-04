@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Mic,
-  MicOff,
   Square,
   Play,
   Pause,
@@ -86,7 +85,6 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     startRecording,
     stopRecording,
     pauseRecording,
-    resumeRecording,
     clearRecording,
     downloadRecording,
   } = useVoiceRecording({ ...options, maxDuration });

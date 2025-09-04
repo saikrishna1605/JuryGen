@@ -11,7 +11,6 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Job, ProcessingStatus, ProcessingStage } from '../../types/job';
-import { UserRole } from '../../types/document';
 import { cn, formatDate, formatDuration } from '../../lib/utils';
 
 interface JobStatusCardProps {
@@ -54,6 +53,14 @@ const STATUS_CONFIG = {
     borderColor: 'border-red-200',
     label: 'Failed',
     description: 'Processing failed',
+  },
+  [ProcessingStatus.CANCELLED]: {
+    icon: AlertCircle,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-50',
+    borderColor: 'border-gray-200',
+    label: 'Cancelled',
+    description: 'Processing was cancelled',
   },
 };
 
@@ -125,7 +132,7 @@ export const JobStatusCard: React.FC<JobStatusCardProps> = ({
             />
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
-                {job.document?.filename || `Job ${job.id.slice(0, 8)}`}
+                {`Job ${job.id.slice(0, 8)}`}
               </h3>
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <span className={statusConfig.color}>
@@ -177,31 +184,14 @@ export const JobStatusCard: React.FC<JobStatusCardProps> = ({
               {/* Document info */}
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <FileText className="w-4 h-4" />
-                <span>
-                  {job.document?.sizeBytes && (
-                    `${Math.round(job.document.sizeBytes / 1024)} KB • `
-                  )}
-                  {job.document?.pages && `${job.document.pages} pages`}
-                </span>
+                <span>Document ID: {job.documentId.slice(0, 8)}</span>
               </div>
 
-              {/* User role */}
-              {job.document?.userRole && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <User className="w-4 h-4" />
-                  <span className="capitalize">
-                    {job.document.userRole.replace('_', ' ')}
-                  </span>
-                </div>
-              )}
-
-              {/* Jurisdiction */}
-              {job.document?.jurisdiction && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4" />
-                  <span>{job.document.jurisdiction}</span>
-                </div>
-              )}
+              {/* User ID */}
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <User className="w-4 h-4" />
+                <span>User: {job.userId.slice(0, 8)}</span>
+              </div>
             </div>
 
             {/* Right column */}

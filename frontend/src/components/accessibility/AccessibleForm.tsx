@@ -6,7 +6,7 @@ import { cn } from '../../lib/utils';
 interface FormFieldProps {
   id: string;
   label: string;
-  type?: 'text' | 'email' | 'password' | 'tel' | 'url' | 'search' | 'textarea' | 'select';
+  type?: 'text' | 'email' | 'password' | 'tel' | 'url' | 'search' | 'textarea' | 'select' | 'date';
   value: string;
   onChange: (value: string) => void;
   error?: string;

@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getAnalytics } from "firebase/analytics";
+// import { getAnalytics } from "firebase/analytics"; // Commented out as analytics is disabled
 
 // Firebase configuration - using production values directly
 
@@ -55,11 +55,11 @@ try {
 
   console.log('✅ Firebase initialized successfully');
   console.log('🔥 Using real Firebase authentication for project:', firebaseConfig.projectId);
-} catch (error) {
+} catch (error: any) {
   console.error('❌ Firebase initialization failed:', error);
   
   // This likely means Firebase Authentication isn't enabled
-  if (error.message.includes('auth')) {
+  if (error?.message?.includes('auth')) {
     console.error('🚨 Firebase Authentication may not be enabled in Firebase Console');
     console.error('💡 Go to https://console.firebase.google.com/project/kiro-hackathon23/authentication');
     console.error('💡 Click "Get started" and enable Email/Password authentication');

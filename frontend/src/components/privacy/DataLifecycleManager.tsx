@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -17,8 +17,7 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  Grid,
-  Divider,
+  Grid2 as Grid,
   List,
   ListItem,
   ListItemText,

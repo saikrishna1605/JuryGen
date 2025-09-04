@@ -12,7 +12,6 @@ export interface AnnouncementOptions {
  * Hook for making announcements to screen readers
  */
 export const useAriaAnnouncements = () => {
-  const announcementRegionRef = useRef<HTMLDivElement | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Create or get the announcement region

@@ -143,11 +143,11 @@ class VoiceQAService {
         message: 'Processing your question...'
       });
 
-      const qaResponse = await qaService.askQuestion({
+      const qaResponse = await qaService.askTextQuestion(
         question,
-        documentId: request.documentId,
-        sessionId: request.sessionId,
-        includeContext: true,
+        request.documentId,
+        {
+          sessionId: request.sessionId,
         maxSources: 5
       });
 
@@ -179,7 +179,7 @@ class VoiceQAService {
             `audio/${synthesis.audioFormat.toLowerCase()}`
           ),
           audioFormat: synthesis.audioFormat,
-          duration: synthesis.audioLength || 0
+          duration: synthesis.duration || 0
         };
       } catch (error) {
         console.warn('Audio synthesis failed:', error);
@@ -199,7 +199,7 @@ class VoiceQAService {
         question,
         answer: qaResponse.answer,
         confidence: qaResponse.confidence,
-        sources: qaResponse.sources.map(source => ({
+        sources: qaResponse.sources.map((source: any) => ({
           documentId: source.documentId,
           chunkId: source.chunkId || '',
           title: source.title || 'Unknown Document',
@@ -328,10 +328,11 @@ class VoiceQAService {
   /**
    * Get suggested questions for a document
    */
-  async getSuggestedQuestions(documentId: string): Promise<string[]> {
+  async getSuggestedQuestions(_documentId: string): Promise<string[]> {
     try {
-      // This would typically call the backend API
+      // This would typically call the backend API with documentId
       // For now, return common legal document questions
+      // TODO: Use documentId to fetch document-specific suggestions
       return [
         "What are the main terms and conditions?",
         "What are my obligations under this agreement?",

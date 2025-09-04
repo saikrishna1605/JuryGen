@@ -67,7 +67,7 @@ export const useVoiceRecording = (
   const isSupported = useCallback(() => {
     return !!(
       navigator.mediaDevices &&
-      navigator.mediaDevices.getUserMedia &&
+      typeof navigator.mediaDevices.getUserMedia === 'function' &&
       window.MediaRecorder &&
       window.AudioContext
     );

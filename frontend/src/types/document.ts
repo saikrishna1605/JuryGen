@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ProcessingStatus, ProcessingStage } from './job';
+import { ProcessingStatus } from './job';
 
 export enum ClauseClassification {
   BENEFICIAL = 'beneficial',

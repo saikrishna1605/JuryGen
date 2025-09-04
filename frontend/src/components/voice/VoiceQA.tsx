@@ -1,21 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  Send,
   Trash2,
   MessageCircle,
-  Clock,
   User,
   Bot,
   Play,
   Pause,
-  RotateCcw,
   Loader2,
-  AlertCircle,
-  CheckCircle,
 } from 'lucide-react';
 import { VoiceInput } from './VoiceInput';
 import { speechService } from '../../services/speechService';
@@ -117,7 +108,7 @@ export const VoiceQA: React.FC<VoiceQAProps> = ({
   }, [documentId]);
 
   // Handle voice input
-  const handleVoiceInput = useCallback(async (audioBlob: Blob, transcript?: string) => {
+  const handleVoiceInput = useCallback(async (audioBlob: Blob) => {
     if (!audioBlob) return;
 
     setIsProcessing(true);

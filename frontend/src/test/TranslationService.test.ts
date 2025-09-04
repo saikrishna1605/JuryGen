@@ -4,7 +4,7 @@ import api from '../lib/api';
 
 // Mock the API
 vi.mock('../lib/api', () => ({
-  api: {
+  default: {
     post: vi.fn(),
     get: vi.fn(),
   },

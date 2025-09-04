@@ -4,7 +4,7 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
+  Grid2 as Grid,
   Chip,
   Table,
   TableBody,
@@ -19,11 +19,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  DatePicker,
   Button,
   Tooltip,
   IconButton
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
   Security,
   Warning,

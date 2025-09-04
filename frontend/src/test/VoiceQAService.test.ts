@@ -39,7 +39,7 @@ vi.mock('../services/speechService', () => ({
 
 vi.mock('../services/qaService', () => ({
   qaService: {
-    askQuestion: vi.fn(),
+    askTextQuestion: vi.fn(),
     getSessionHistory: vi.fn(),
     clearSession: vi.fn(),
     health_check: vi.fn()
@@ -58,20 +58,20 @@ describe('VoiceQAService', () => {
       transcript: 'What are the main terms of this contract?',
       confidence: 0.95,
       processingTime: 2.1,
-      audioLength: 5.2,
+      duration: 5.2,
       languageCode: 'en-US'
     });
 
     mockSpeechService.synthesizeText.mockResolvedValue({
       audioContentBase64: 'base64audiodata',
       audioFormat: 'MP3',
-      audioLength: 8.5,
+      duration: 8.5,
       processingTime: 1.8
     });
 
     mockSpeechService.createAudioUrl.mockReturnValue('blob:audio-url');
 
-    mockQAService.askQuestion.mockResolvedValue({
+    mockQAService.askTextQuestion.mockResolvedValue({
       answer: 'The main terms include payment obligations, delivery requirements, and termination clauses.',
       confidence: 0.88,
       sources: [
@@ -128,9 +128,9 @@ describe('VoiceQAService', () => {
       );
 
       // Verify Q&A processing was called
-      expect(mockQAService.askQuestion).toHaveBeenCalledWith({
-        question: 'What are the main terms of this contract?',
-        documentId: 'doc1',
+      expect(mockQAService.askTextQuestion).toHaveBeenCalledWith(
+        'What are the main terms of this contract?',
+        'doc1',
         sessionId: undefined,
         includeContext: true,
         maxSources: 5
@@ -183,9 +183,9 @@ describe('VoiceQAService', () => {
       expect(mockSpeechService.transcribeAudio).not.toHaveBeenCalled();
 
       // Verify Q&A processing was called with provided question
-      expect(mockQAService.askQuestion).toHaveBeenCalledWith({
-        question: 'What are the payment terms?',
-        documentId: 'doc1',
+      expect(mockQAService.askTextQuestion).toHaveBeenCalledWith(
+        'What are the payment terms?',
+        'doc1',
         sessionId: undefined,
         includeContext: true,
         maxSources: 5
@@ -242,7 +242,7 @@ describe('VoiceQAService', () => {
     });
 
     it('should handle Q&A processing failure', async () => {
-      mockQAService.askQuestion.mockRejectedValue(new Error('Q&A processing failed'));
+      mockQAService.askTextQuestion.mockRejectedValue(new Error('Q&A processing failed'));
 
       const request: VoiceQARequest = {
         question: 'What are the terms?',
@@ -409,7 +409,7 @@ describe('VoiceQAService', () => {
     });
 
     it('should report progress on error', async () => {
-      mockQAService.askQuestion.mockRejectedValue(new Error('Processing failed'));
+      mockQAService.askTextQuestion.mockRejectedValue(new Error('Processing failed'));
 
       const request: VoiceQARequest = {
         question: 'What are the terms?',
@@ -456,7 +456,7 @@ describe('VoiceQAService', () => {
 
       // Verify complete pipeline was executed
       expect(mockSpeechService.transcribeAudio).toHaveBeenCalled();
-      expect(mockQAService.askQuestion).toHaveBeenCalled();
+      expect(mockQAService.askTextQuestion).toHaveBeenCalled();
       expect(mockSpeechService.synthesizeText).toHaveBeenCalled();
       expect(mockSpeechService.createAudioUrl).toHaveBeenCalled();
 
@@ -501,7 +501,9 @@ describe('VoiceQAService', () => {
       expect(history[1].question).toBe('What about penalties?');
 
       // Verify session was passed to Q&A service
-      expect(mockQAService.askQuestion).toHaveBeenCalledWith(
+      expect(mockQAService.askTextQuestion).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
         expect.objectContaining({
           sessionId: session.sessionId
         })

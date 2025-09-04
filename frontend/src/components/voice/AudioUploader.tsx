@@ -1,12 +1,9 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
-  Upload,
-  File,
   Play,
   Pause,
   Trash2,
   Download,
-  AlertCircle,
   CheckCircle,
   Music,
   FileAudio,

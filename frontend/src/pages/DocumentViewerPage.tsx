@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Settings, Download, Share2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Eye, EyeOff } from 'lucide-react';
 import { PDFViewer, ClauseHeatmap, ClauseDetailsPanel } from '../components/pdf';
-import { ProcessedDocument, Clause, UserRole } from '../types/document';
+import { UserRole } from '../types/document';
 import { useDocument } from '../hooks/useDocument';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -17,7 +17,7 @@ interface ViewerSettings {
 export const DocumentViewerPage: React.FC = () => {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+
   
   // Document data
   const { document, isLoading, error } = useDocument(documentId);
@@ -214,7 +214,7 @@ export const DocumentViewerPage: React.FC = () => {
             'lg:col-span-12'
           )}>
             <PDFViewer
-              fileUrl={document.storageUrl || ''}
+              fileUrl={`/api/v1/documents/${document.id}/download`}
               clauses={document.clauses}
               selectedClauseId={selectedClauseId || undefined}
               onClauseSelect={handleClauseSelect}

@@ -7,9 +7,6 @@ import {
   QrCode,
   Settings,
   Eye,
-  MessageSquare,
-  Download,
-  Users,
   Calendar,
   Lock,
   Globe,
@@ -55,7 +52,7 @@ export const SharingCenter: React.FC<SharingCenterProps> = ({
   const [expirationDate, setExpirationDate] = useState('');
   const [password, setPassword] = useState('');
   const [allowedUsers, setAllowedUsers] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('');
+
 
   const { announceSuccess, announceError } = useAriaAnnouncements();
 

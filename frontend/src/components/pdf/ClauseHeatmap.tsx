@@ -208,7 +208,7 @@ export const ClauseHeatmap: React.FC<ClauseHeatmapProps> = ({
                 {/* Clause dots for detailed view */}
                 {stats.totalClauses > 0 && stats.totalClauses <= 10 && (
                   <div className="absolute inset-2 flex flex-wrap gap-1 items-center justify-center">
-                    {stats.clauses.map((clause, index) => (
+                    {stats.clauses.map((clause) => (
                       <div
                         key={clause.id}
                         className={cn(

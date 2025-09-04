@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TranslationPanel } from '../components/translation/TranslationPanel';
@@ -57,7 +56,7 @@ describe('TranslationPanel', () => {
 
   const waitForLanguagesToLoad = async () => {
     await waitFor(() => {
-      expect(screen.getByText((content, element) => 
+      expect(screen.getByText((_content, element) => 
         element?.textContent?.includes('Spanish') || false
       )).toBeInTheDocument();
     });
@@ -73,7 +72,7 @@ describe('TranslationPanel', () => {
 
     // Wait for supported languages to load
     await waitForLanguagesToLoad();
-    expect(screen.getByText((content, element) => 
+    expect(screen.getByText((_content, element) => 
       element?.textContent?.includes('French') || false
     )).toBeInTheDocument();
   });
