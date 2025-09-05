@@ -9,7 +9,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface VoiceInputProps {
   onVoiceInput?: (audioBlob: Blob, transcript?: string) => void;

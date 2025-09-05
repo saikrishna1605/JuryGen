@@ -12,7 +12,7 @@ import {
 import { exportService, ExportResponse } from '../../services/exportService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { ProgressAnnouncement } from '../accessibility/ScreenReaderUtils';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ExportProgressProps {
   exportId: string;

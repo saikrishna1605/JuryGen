@@ -16,7 +16,7 @@ import {
 } from '../../services/sharingService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { AccessibleMenu, AccessibleMenuItem } from '../accessibility/KeyboardNavigation';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface CollaborationCommentsProps {
   shareId: string;

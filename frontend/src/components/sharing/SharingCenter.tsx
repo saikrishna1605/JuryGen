@@ -21,7 +21,7 @@ import {
 } from '../../services/sharingService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { AccessibleModal, AccessibleForm, FormField } from '../accessibility';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface SharingCenterProps {
   documentId: string;

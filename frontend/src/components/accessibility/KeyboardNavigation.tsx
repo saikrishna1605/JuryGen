@@ -26,7 +26,7 @@ export const KeyboardShortcut: React.FC<KeyboardShortcutProps> = ({
     if (disabled) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const pressedKeys = [];
+      const pressedKeys: string[] = [];
       
       if (event.ctrlKey) pressedKeys.push('ctrl');
       if (event.altKey) pressedKeys.push('alt');

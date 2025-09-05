@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Globe, Search, Check } from 'lucide-react';
 import { translationService, SupportedLanguage } from '../../services/translationService';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface LanguageSelectorProps {
   value?: string;

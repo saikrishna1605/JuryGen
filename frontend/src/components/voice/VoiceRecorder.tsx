@@ -12,7 +12,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { useVoiceRecording, VoiceRecordingOptions } from '../../hooks/useVoiceRecording';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface VoiceRecorderProps {
   onRecordingComplete?: (audioBlob: Blob, duration: number) => void;

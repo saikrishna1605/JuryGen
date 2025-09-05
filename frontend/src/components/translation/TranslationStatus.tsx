@@ -1,7 +1,7 @@
 import React from 'react';
 import { Languages, CheckCircle, AlertCircle, Clock, Loader2, Globe } from 'lucide-react';
 import { translationService } from '../../services/translationService';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface TranslationStatusProps {
   status: 'idle' | 'detecting' | 'translating' | 'completed' | 'error';

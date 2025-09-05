@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Volume2,
-  Download,
   Play,
   Pause,
-  Settings,
   FileAudio,
   FileText,
   RefreshCw,
@@ -17,11 +15,10 @@ import {
   AudioExportOptions,
   TranscriptExportOptions,
   VoiceOption,
-  AudioExportResponse,
 } from '../../services/audioExportService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { AccessibleModal } from '../accessibility';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface AudioExportCenterProps {
   documentId: string;

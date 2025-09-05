@@ -14,7 +14,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { ProcessingStage, ProcessingStatus } from '../../types/job';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ProgressTimelineProps {
   currentStage: ProcessingStage;

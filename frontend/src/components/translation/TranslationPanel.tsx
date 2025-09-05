@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Languages, Globe, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { translationService, TranslationResult, SupportedLanguage } from '../../services/translationService';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface TranslationPanelProps {
     documentId?: string;

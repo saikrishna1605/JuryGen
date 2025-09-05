@@ -11,7 +11,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Job, ProcessingStatus, ProcessingStage } from '../../types/job';
-import { cn, formatDate, formatDuration } from '../../lib/utils';
+import { cn, formatDate, formatDuration } from '../../utils';
 
 interface JobStatusCardProps {
   job: Job;

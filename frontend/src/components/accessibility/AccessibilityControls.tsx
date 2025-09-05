@@ -17,7 +17,7 @@ import {
   Pause,
 } from 'lucide-react';
 import { useAccessibility } from '../../contexts/AccessibilityContext';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface AccessibilityControlsProps {
   className?: string;

@@ -53,16 +53,7 @@ reportlab>=4.0.0
 # redis>=5.0.1
 # sqlalchemy>=2.0.23
 
-# Testing
-pytest>=7.4.3
-pytest-asyncio>=0.21.1
-pytest-mock>=3.12.0
-
-# Development tools
-black>=23.11.0
-isort>=5.12.0
-flake8>=6.1.0
-mypy>=1.7.1
+# Note: Development dependencies are in requirements-dev.txt
 
 # Monitoring and logging
 structlog>=23.2.0

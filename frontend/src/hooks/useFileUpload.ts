@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { UploadUrlRequest, UploadUrlResponse, UploadProgress } from '../types';
-import { apiClient } from '../lib/api';
+import { apiClient } from '../utils/api';
 
 interface UseFileUploadOptions {
   onProgress?: (progress: UploadProgress) => void;

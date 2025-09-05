@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { Clause, ClauseClassification } from '../../types/document';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ClauseHeatmapProps {
   clauses: Clause[];

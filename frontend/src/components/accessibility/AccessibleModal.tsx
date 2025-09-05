@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useFocusManagement } from '../../hooks/useFocusManagement';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface AccessibleModalProps {
   isOpen: boolean;

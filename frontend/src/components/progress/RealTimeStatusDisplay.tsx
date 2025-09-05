@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Wifi, WifiOff, AlertCircle, RefreshCw } from 'lucide-react';
 import { ProcessingStage, ProcessingStatus, Job } from '../../types/job';
 import { ProgressTimeline } from './ProgressTimeline';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface RealTimeStatusDisplayProps {
   jobId: string;

@@ -13,7 +13,7 @@ import {
 import { exportService, ExportResponse } from '../../services/exportService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { AccessibleTable } from '../accessibility/ScreenReaderUtils';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ExportHistoryProps {
   className?: string;

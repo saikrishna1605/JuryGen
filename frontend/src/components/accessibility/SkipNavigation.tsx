@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface SkipLink {
   href: string;
@@ -29,14 +29,14 @@ export const SkipNavigation: React.FC<SkipNavigationProps> = ({
     if (target) {
       // Focus the target element
       const focusableTarget = target as HTMLElement;
-      
+
       // Make sure the target is focusable
       if (!focusableTarget.hasAttribute('tabindex')) {
         focusableTarget.setAttribute('tabindex', '-1');
       }
-      
+
       focusableTarget.focus();
-      
+
       // Scroll to the target
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

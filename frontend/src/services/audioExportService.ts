@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from '../utils/api';
 
 export interface AudioExportOptions {
   format: 'mp3' | 'wav' | 'ogg';

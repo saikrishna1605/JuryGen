@@ -5,7 +5,7 @@ import { PDFViewer, ClauseHeatmap, ClauseDetailsPanel } from '../components/pdf'
 import { UserRole } from '../types/document';
 import { useDocument } from '../hooks/useDocument';
 import { useAuth } from '../contexts/AuthContext';
-import { cn } from '../lib/utils';
+import { cn } from '../utils';
 
 interface ViewerSettings {
   showAnnotations: boolean;

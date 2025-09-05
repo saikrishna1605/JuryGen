@@ -1,14 +1,22 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { AccessibilityProvider } from './contexts/AccessibilityContext'
-import { LoginPage } from './pages/LoginPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { UploadPage } from './pages/UploadPage'
-import { SkipNavigation, AccessibilityControls } from './components/accessibility'
-import FirebaseTest from './components/FirebaseTest'
-import { Settings } from 'lucide-react'
-import { useState } from 'react'
-import './App.css'
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AccessibilityProvider } from './contexts/AccessibilityContext';
+import { SkipNavigation } from './components/accessibility/SkipNavigation';
+import { AccessibilityControls } from './components/accessibility/AccessibilityControls';
+import { Settings } from 'lucide-react';
+
+// Pages
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import UploadPage from './pages/UploadPage';
+
+// Firebase Test Component
+import FirebaseTest from './components/FirebaseTest';
+
+// Styles
+import './index.css';
+import './styles/accessibility.css';
 
 // Navigation component with auth state
 const Navigation = () => {

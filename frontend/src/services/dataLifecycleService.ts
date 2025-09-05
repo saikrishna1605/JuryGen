@@ -8,7 +8,7 @@
  * - Data export and deletion
  */
 
-import { apiClient } from '../lib/api';
+import { apiClient } from '../utils/api';
 
 export interface RetentionPolicy {
   data_category: string;

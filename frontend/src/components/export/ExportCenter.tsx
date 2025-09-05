@@ -14,7 +14,7 @@ import {
 import { exportService, ExportOptions, ExportResponse } from '../../services/exportService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { AccessibleModal } from '../accessibility';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ExportCenterProps {
   documentId: string;

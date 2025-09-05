@@ -8,7 +8,7 @@
  * - User activity tracking
  */
 
-import { apiClient } from '../lib/api';
+import { apiClient } from '../utils/api';
 
 export interface AuditLogQuery {
   startTime?: Date;

@@ -47,15 +47,13 @@ except ImportError:
     pass  # Agents endpoints not available in minimal mode
 
 # Include streaming endpoints
-# Temporarily disabled due to async task issues
-# try:
-#     from .endpoints import streaming
-#     api_router.include_router(
-#         streaming.router,
-#         tags=["streaming"]
-#     )
-# except ImportError:
-#     pass  # Streaming endpoints not available
+try:
+    from .endpoints import streaming
+    api_router.include_router(
+        streaming.router,
+        prefix="/streaming",
+        tags=["streaming"]
+    )
 except ImportError:
     pass  # Streaming endpoints not available in minimal mode
 
@@ -110,15 +108,3 @@ try:
     )
 except ImportError:
     pass  # PII endpoints not available in minimal mode
-# 
-# api_router.include_router(
-#     jobs.router,
-#     prefix="/jobs",
-#     tags=["jobs"]
-# )
-# 
-# api_router.include_router(
-#     qa.router,
-#     prefix="/qa",
-#     tags=["qa"]
-# )

@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from '../utils/api';
 
 export interface ShareableLink {
   id: string;

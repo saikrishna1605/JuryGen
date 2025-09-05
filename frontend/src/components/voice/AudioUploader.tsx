@@ -8,7 +8,7 @@ import {
   Music,
   FileAudio,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface AudioUploaderProps {
   onFileUpload?: (file: File, duration?: number) => void;

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle, CheckCircle, AlertCircle, ExternalLink, Copy, BookOpen } from 'lucide-react';
 import { Clause, ClauseClassification, UserRole } from '../../types/document';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface ClauseDetailsPanelProps {
   clause: Clause | null;

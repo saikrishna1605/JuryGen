@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { VoiceInput } from './VoiceInput';
 import { speechService } from '../../services/speechService';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface VoiceQAProps {
   documentId: string;

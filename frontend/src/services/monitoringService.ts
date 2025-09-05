@@ -9,7 +9,7 @@
  * - Error reporting
  */
 
-import { apiClient } from '../lib/api';
+import { apiClient } from '../utils/api';
 
 export interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';

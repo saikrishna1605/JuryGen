@@ -1,0 +1,102 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Test Backend
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt -r requirements-dev.txt
+          
+      - name: Run tests
+        run: |
+          cd backend
+          python -m pytest tests/ -v
+          
+      - name: Lint code
+        run: |
+          cd backend
+          python -m flake8 app/ --max-line-length=100
+          python -m black --check app/
+
+  # Test Frontend
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run tests
+        run: |
+          cd frontend
+          npm run test
+          
+      - name: Lint code
+        run: |
+          cd frontend
+          npm run lint
+          
+      - name: Type check
+        run: |
+          cd frontend
+          npm run type-check
+          
+      - name: Build
+        run: |
+          cd frontend
+          npm run build
+
+  # Build and push Docker images (only on main branch)
+  build-and-deploy:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker images
+        run: |
+          docker build -t legal-companion-backend:latest ./backend
+          docker build -t legal-companion-frontend:latest ./frontend
+          
+      - name: Test Docker containers
+        run: |
+          # Start containers
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Basic health checks
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:80 || exit 1
+          
+          # Stop containers
+          docker-compose -f docker-compose.prod.yml down

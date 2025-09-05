@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
-import { cn } from '../../lib/utils';
+import { cn } from '../../utils';
 
 interface FormFieldProps {
   id: string;
@@ -70,7 +70,7 @@ export const FormField: React.FC<FormFieldProps> = ({
     placeholder,
     autoComplete,
     required,
-    'aria-invalid': error ? 'true' : 'false',
+    'aria-invalid': !!error,
     'aria-describedby': [
       helperText ? `${id}-helper` : '',
       error ? `${id}-error` : '',
@@ -192,7 +192,7 @@ export const AccessibleForm: React.FC<AccessibleFormProps> = ({
   noValidate = true,
 }) => {
   const formRef = useRef<HTMLFormElement>(null);
-  const { announceError, announceSuccess } = useAriaAnnouncements();
+  const { announceError } = useAriaAnnouncements();
 
   const handleSubmit = useCallback((event: React.FormEvent) => {
     event.preventDefault();
