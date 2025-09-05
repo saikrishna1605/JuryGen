@@ -6,7 +6,7 @@ import { DocumentUploader } from '../components/upload';
 import { VoiceQA } from '../components/voice';
 import { UploadUrlResponse } from '../types';
 
-export const DashboardPage: React.FC = () => {
+const DashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
   const [activeView, setActiveView] = useState<'dashboard' | 'upload' | 'voice'>('dashboard');
   const [recentDocuments, setRecentDocuments] = useState<any[]>([]);
@@ -320,3 +320,5 @@ export const DashboardPage: React.FC = () => {
     </ProtectedRoute>
   );
 };
+
+export default DashboardPage;

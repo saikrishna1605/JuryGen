@@ -21,6 +21,7 @@ from google.api_core import exceptions as gcp_exceptions
 from ..core.config import get_settings
 from ..models.base import ProcessingStatus, ProcessingStage
 from ..models.document import Document
+from ..models.job import Job as JobModel, JobOptions
 from ..core.exceptions import WorkflowError
 from .firestore import FirestoreService
 
@@ -185,7 +186,7 @@ class JobManager:
         self,
         document_id: str,
         user_id: str,
-        job_type: str = "document_analysis",
+        options: Optional[JobOptions] = None,
         priority: int = 2,
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -195,7 +196,7 @@ class JobManager:
         Args:
             document_id: ID of the document to process
             user_id: ID of the user requesting processing
-            job_type: Type of processing job
+            options: Job processing options
             priority: Job priority (1-4, higher is more urgent)
             metadata: Additional job metadata
             
@@ -206,38 +207,44 @@ class JobManager:
             WorkflowError: If job creation fails
         """
         try:
-            job_id = str(uuid4())
+            from uuid import UUID
             
-            # Create job object
-            job = Job(
-                job_id=job_id,
+            # Create job using Pydantic model
+            job = JobModel(
+                document_id=UUID(document_id),
+                user_id=user_id,
+                options=options or JobOptions(),
+                status=ProcessingStatus.QUEUED,
+                current_stage=ProcessingStage.UPLOAD,
+                progress_percentage=0
+            )
+            
+            # Store job in Firestore using the correct method
+            await self.firestore_service.create_job(job)
+            
+            # Create internal job object for queue management
+            internal_job = Job(
+                job_id=str(job.id),
                 document_id=document_id,
                 user_id=user_id,
-                job_type=job_type,
+                job_type="document_analysis",
                 priority=priority,
                 metadata=metadata
             )
             
-            # Store job in Firestore
-            await self.firestore_service.create_document(
-                "jobs",
-                job_id,
-                job.to_dict()
-            )
-            
             # Add to appropriate queue
-            self.job_queues[priority].append(job)
+            self.job_queues[priority].append(internal_job)
             
             # Sort queue by creation time (FIFO within priority)
             self.job_queues[priority].sort(key=lambda j: j.created_at)
             
-            logger.info(f"Created job {job_id} for document {document_id}")
+            logger.info(f"Created job {job.id} for document {document_id}")
             
             # Start processing if not already running
             if not self._processing_task or self._processing_task.done():
                 self._processing_task = asyncio.create_task(self._process_job_queue())
             
-            return job_id
+            return str(job.id)
             
         except Exception as e:
             logger.error(f"Job creation failed: {str(e)}")
@@ -254,16 +261,17 @@ class JobManager:
             Job status information or None if not found
         """
         try:
+            from uuid import UUID
+            
             # Check active jobs first
             if job_id in self.active_jobs:
-                job = self.active_jobs[job_id]
-                return self._format_job_status(job)
+                internal_job = self.active_jobs[job_id]
+                return self._format_internal_job_status(internal_job)
             
-            # Check Firestore
-            job_data = await self.firestore_service.get_document("jobs", job_id)
-            if job_data:
-                job = Job.from_dict(job_data)
-                return self._format_job_status(job)
+            # Check Firestore using proper method
+            job = await self.firestore_service.get_job(UUID(job_id))
+            if job:
+                return self._format_pydantic_job_status(job)
             
             return None
             
@@ -271,8 +279,8 @@ class JobManager:
             logger.error(f"Failed to get job status: {str(e)}")
             return None
     
-    def _format_job_status(self, job: Job) -> Dict[str, Any]:
-        """Format job status for API response."""
+    def _format_internal_job_status(self, job: Job) -> Dict[str, Any]:
+        """Format internal job status for API response."""
         status = {
             "job_id": job.job_id,
             "document_id": job.document_id,
@@ -299,6 +307,30 @@ class JobManager:
             
         return status
     
+    def _format_pydantic_job_status(self, job: JobModel) -> Dict[str, Any]:
+        """Format Pydantic job status for API response."""
+        status = {
+            "job_id": str(job.id),
+            "document_id": str(job.document_id),
+            "status": job.status.value,
+            "current_stage": job.current_stage.value,
+            "progress_percentage": job.progress_percentage,
+            "created_at": job.created_at.isoformat(),
+            "estimated_completion": job.estimated_completion.isoformat() if job.estimated_completion else None
+        }
+        
+        # Add timing information
+        if job.started_at:
+            status["started_at"] = job.started_at.isoformat()
+        if job.completed_at:
+            status["completed_at"] = job.completed_at.isoformat()
+            
+        # Add error information
+        if job.error:
+            status["error_message"] = job.error.message
+            
+        return status
+    
     async def update_job_progress(
         self,
         job_id: str,
@@ -319,40 +351,38 @@ class JobManager:
             True if update was successful
         """
         try:
-            # Find job
-            job = None
+            from uuid import UUID
+            from ..models.job import JobProgress
+            
+            # Update internal job if it exists
             if job_id in self.active_jobs:
-                job = self.active_jobs[job_id]
-            else:
-                # Load from Firestore
-                job_data = await self.firestore_service.get_document("jobs", job_id)
-                if job_data:
-                    job = Job.from_dict(job_data)
+                internal_job = self.active_jobs[job_id]
+                internal_job.current_stage = stage
+                internal_job.progress_percentage = min(100, max(0, progress))
+                
+                if internal_job.status == ProcessingStatus.QUEUED:
+                    internal_job.status = ProcessingStatus.PROCESSING
+                    internal_job.started_at = datetime.utcnow()
+                
+                # Update ETA
+                internal_job.estimated_completion = self._calculate_eta(internal_job)
+                
+                # Notify progress callbacks
+                await self._notify_progress_callbacks(internal_job, message)
             
-            if not job:
-                logger.warning(f"Job {job_id} not found for progress update")
-                return False
-            
-            # Update job status
-            job.current_stage = stage
-            job.progress_percentage = min(100, max(0, progress))
-            
-            if job.status == ProcessingStatus.QUEUED:
-                job.status = ProcessingStatus.PROCESSING
-                job.started_at = datetime.utcnow()
-            
-            # Update ETA
-            job.estimated_completion = self._calculate_eta(job)
-            
-            # Store updated job
-            await self.firestore_service.update_document(
-                "jobs",
-                job_id,
-                job.to_dict()
+            # Create progress object for Firestore
+            job_progress = JobProgress(
+                stage=stage,
+                percentage=min(100, max(0, progress)),
+                message=message,
+                started_at=datetime.utcnow()
             )
             
-            # Notify progress callbacks
-            await self._notify_progress_callbacks(job, message)
+            # Update job in Firestore using proper method
+            await self.firestore_service.update_job_progress(
+                UUID(job_id),
+                job_progress
+            )
             
             logger.debug(f"Updated job {job_id}: {stage.value} - {progress}%")
             return True
@@ -386,27 +416,58 @@ class JobManager:
             if job_id in self.active_jobs:
                 job = self.active_jobs[job_id]
             else:
-                job_data = await self.firestore_service.get_document("jobs", job_id)
-                if job_data:
-                    job = Job.from_dict(job_data)
+                # Load from Firestore using proper method
+                from uuid import UUID
+                pydantic_job = await self.firestore_service.get_job(UUID(job_id))
+                if not pydantic_job:
+                    logger.warning(f"Job {job_id} not found for completion")
+                    return False
+                
+                # Update the Pydantic job
+                pydantic_job.status = ProcessingStatus.COMPLETED if success else ProcessingStatus.FAILED
+                pydantic_job.progress_percentage = 100 if success else pydantic_job.progress_percentage
+                pydantic_job.completed_at = datetime.utcnow()
+                
+                if error_message and not success:
+                    from ..models.job import JobError
+                    from ..models.base import ErrorType
+                    pydantic_job.error = JobError(
+                        type=ErrorType.PROCESSING_ERROR,
+                        message=error_message,
+                        timestamp=datetime.utcnow()
+                    )
+                
+                # Store completed job using proper method
+                await self.firestore_service.update_job(pydantic_job)
+                
+                # Update statistics
+                await self._update_job_statistics_pydantic(pydantic_job)
+                
+                logger.info(f"Completed job {job_id}: {'success' if success else 'failed'}")
+                return True
             
-            if not job:
-                logger.warning(f"Job {job_id} not found for completion")
-                return False
-            
-            # Update job status
-            job.status = ProcessingStatus.COMPLETED if success else ProcessingStatus.FAILED
-            job.progress_percentage = 100 if success else job.progress_percentage
-            job.completed_at = datetime.utcnow()
-            job.results = results
-            job.error_message = error_message
-            
-            # Store completed job
-            await self.firestore_service.update_document(
-                "jobs",
-                job_id,
-                job.to_dict()
-            )
+            # Handle internal job
+            if job_id in self.active_jobs:
+                internal_job = self.active_jobs[job_id]
+                
+                # Update job status
+                internal_job.status = ProcessingStatus.COMPLETED if success else ProcessingStatus.FAILED
+                internal_job.progress_percentage = 100 if success else internal_job.progress_percentage
+                internal_job.completed_at = datetime.utcnow()
+                internal_job.results = results
+                internal_job.error_message = error_message
+                
+                # Remove from active jobs
+                del self.active_jobs[job_id]
+                
+                # Update statistics
+                await self._update_job_statistics(internal_job)
+                
+                # Notify completion
+                await self._notify_progress_callbacks(internal_job, "Job completed")
+                
+                logger.info(f"Completed job {job_id}: {'success' if success else 'failed'}")
+                return True
             
             # Remove from active jobs
             if job_id in self.active_jobs:
@@ -437,45 +498,58 @@ class JobManager:
             True if cancellation was successful
         """
         try:
-            # Find job
-            job = None
-            if job_id in self.active_jobs:
-                job = self.active_jobs[job_id]
-            else:
-                job_data = await self.firestore_service.get_document("jobs", job_id)
-                if job_data:
-                    job = Job.from_dict(job_data)
+            from uuid import UUID
             
-            if not job:
+            # Handle internal job first
+            if job_id in self.active_jobs:
+                internal_job = self.active_jobs[job_id]
+                
+                # Can only cancel queued or processing jobs
+                if internal_job.status in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED, ProcessingStatus.CANCELLED]:
+                    logger.warning(f"Cannot cancel job {job_id} in status {internal_job.status}")
+                    return False
+                
+                # Update job status
+                internal_job.status = ProcessingStatus.CANCELLED
+                internal_job.completed_at = datetime.utcnow()
+                internal_job.error_message = reason
+                
+                # Remove from active jobs
+                del self.active_jobs[job_id]
+                
+                # Notify cancellation
+                await self._notify_progress_callbacks(internal_job, f"Job cancelled: {reason}")
+            
+            # Load and update Pydantic job
+            pydantic_job = await self.firestore_service.get_job(UUID(job_id))
+            if not pydantic_job:
                 logger.warning(f"Job {job_id} not found for cancellation")
                 return False
             
             # Can only cancel queued or processing jobs
-            if job.status in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED, ProcessingStatus.CANCELLED]:
-                logger.warning(f"Cannot cancel job {job_id} in status {job.status}")
+            if pydantic_job.status in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED, ProcessingStatus.CANCELLED]:
+                logger.warning(f"Cannot cancel job {job_id} in status {pydantic_job.status}")
                 return False
             
             # Update job status
-            job.status = ProcessingStatus.CANCELLED
-            job.completed_at = datetime.utcnow()
-            job.error_message = reason
+            pydantic_job.status = ProcessingStatus.CANCELLED
+            pydantic_job.completed_at = datetime.utcnow()
             
-            # Store cancelled job
-            await self.firestore_service.update_document(
-                "jobs",
-                job_id,
-                job.to_dict()
+            # Add error information
+            from ..models.job import JobError
+            from ..models.base import ErrorType
+            pydantic_job.error = JobError(
+                type=ErrorType.INTERNAL_ERROR,  # Using existing error type for cancellation
+                message=reason,
+                timestamp=datetime.utcnow()
             )
             
-            # Remove from queues and active jobs
+            # Store cancelled job using proper method
+            await self.firestore_service.update_job(pydantic_job)
+            
+            # Remove from queues
             for priority_queue in self.job_queues.values():
                 priority_queue[:] = [j for j in priority_queue if j.job_id != job_id]
-            
-            if job_id in self.active_jobs:
-                del self.active_jobs[job_id]
-            
-            # Notify cancellation
-            await self._notify_progress_callbacks(job, f"Job cancelled: {reason}")
             
             logger.info(f"Cancelled job {job_id}: {reason}")
             return True
@@ -502,23 +576,22 @@ class JobManager:
             List of job status information
         """
         try:
-            # Query Firestore for user jobs
-            query = self.firestore_service.db.collection("jobs").where("user_id", "==", user_id)
+            # Get jobs using Firestore service
+            jobs = await self.firestore_service.get_user_jobs(
+                user_id=user_id,
+                limit=limit
+            )
             
+            # Filter by status if specified
             if status_filter:
-                query = query.where("status", "==", status_filter.value)
+                jobs = [job for job in jobs if job.status == status_filter]
             
-            query = query.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit)
+            # Format jobs for API response
+            formatted_jobs = []
+            for job in jobs:
+                formatted_jobs.append(self._format_pydantic_job_status(job))
             
-            docs = query.stream()
-            
-            jobs = []
-            for doc in docs:
-                job_data = doc.to_dict()
-                job = Job.from_dict(job_data)
-                jobs.append(self._format_job_status(job))
-            
-            return jobs
+            return formatted_jobs
             
         except Exception as e:
             logger.error(f"Failed to get user jobs: {str(e)}")
@@ -731,17 +804,29 @@ class JobManager:
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_old)
             
-            # Query old completed jobs
-            query = (self.firestore_service.db.collection("jobs")
+            # Query old completed jobs using proper Firestore client
+            query = (self.firestore_service.jobs_collection
                     .where("status", "in", [ProcessingStatus.COMPLETED.value, ProcessingStatus.FAILED.value, ProcessingStatus.CANCELLED.value])
                     .where("completed_at", "<", cutoff_date))
             
             docs = query.stream()
             
+            # Use batch operations for efficient deletion
+            batch = self.firestore_service.client.batch()
             deleted_count = 0
-            for doc in docs:
-                await self.firestore_service.delete_document("jobs", doc.id)
+            
+            async for doc in docs:
+                batch.delete(doc.reference)
                 deleted_count += 1
+                
+                # Commit in batches of 500 (Firestore limit)
+                if deleted_count % 500 == 0:
+                    await batch.commit()
+                    batch = self.firestore_service.client.batch()
+            
+            # Commit remaining deletions
+            if deleted_count % 500 != 0:
+                await batch.commit()
             
             logger.info(f"Cleaned up {deleted_count} old jobs")
             return deleted_count
@@ -766,3 +851,12 @@ class JobManager:
                 self._processing_task.cancel()
         
         logger.info("Job manager shutdown complete")
+    
+    async def _update_job_statistics_pydantic(self, job: JobModel):
+        """Update job statistics for Pydantic job model."""
+        try:
+            # This would update global statistics, metrics, etc.
+            # Implementation depends on your requirements
+            logger.debug(f"Updated statistics for job {job.id}")
+        except Exception as e:
+            logger.error(f"Failed to update job statistics: {str(e)}")

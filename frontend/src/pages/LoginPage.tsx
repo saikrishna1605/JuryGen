@@ -4,7 +4,7 @@ import { RegisterForm } from '../components/auth/RegisterForm';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-export const LoginPage: React.FC = () => {
+const LoginPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,3 +55,5 @@ export const LoginPage: React.FC = () => {
     </ProtectedRoute>
   );
 };
+
+export default LoginPage;
