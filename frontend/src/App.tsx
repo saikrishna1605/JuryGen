@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AccessibilityProvider } from './contexts/AccessibilityContext';
@@ -10,6 +10,9 @@ import { Settings } from 'lucide-react';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import UploadPage from './pages/UploadPage';
+import DocumentAnalysisPage from './pages/DocumentAnalysisPage';
+import VoiceQAPage from './pages/VoiceQAPage';
+import TranslationPage from './pages/TranslationPage';
 
 // Firebase Test Component
 import FirebaseTest from './components/FirebaseTest';
@@ -99,6 +102,18 @@ const Navigation = () => {
                   className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
                 >
                   Upload
+                </Link>
+                <Link 
+                  to="/voice-qa" 
+                  className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                >
+                  Voice Q&A
+                </Link>
+                <Link 
+                  to="/translate" 
+                  className="text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                >
+                  Translate
                 </Link>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-600">
@@ -237,6 +252,9 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/upload" element={<UploadPage />} />
+              <Route path="/document/:documentId" element={<DocumentAnalysisPage />} />
+              <Route path="/voice-qa" element={<VoiceQAPage />} />
+              <Route path="/translate" element={<TranslationPage />} />
             </Routes>
             <footer id="footer" className="bg-gray-800 text-white py-8 mt-auto" role="contentinfo">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

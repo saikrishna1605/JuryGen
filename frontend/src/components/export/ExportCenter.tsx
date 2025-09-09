@@ -4,14 +4,13 @@ import {
   FileText,
   FileSpreadsheet,
   File,
-  Settings,
   Clock,
   CheckCircle,
   AlertCircle,
   X,
   RefreshCw,
 } from 'lucide-react';
-import { exportService, ExportOptions, ExportResponse } from '../../services/exportService';
+import { exportService, ExportOptions } from '../../services/exportService';
 import { useAriaAnnouncements } from '../../hooks/useAriaAnnouncements';
 import { AccessibleModal } from '../accessibility';
 import { cn } from '../../utils';

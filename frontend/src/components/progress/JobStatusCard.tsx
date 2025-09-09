@@ -7,7 +7,6 @@ import {
   FileText, 
   Calendar,
   User,
-  MapPin,
   ExternalLink
 } from 'lucide-react';
 import { Job, ProcessingStatus, ProcessingStage } from '../../types/job';

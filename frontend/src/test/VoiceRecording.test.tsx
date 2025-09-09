@@ -10,7 +10,7 @@ class MockMediaRecorder {
   onstop: (() => void) | null = null;
   onerror: ((event: any) => void) | null = null;
   
-  constructor(stream: MediaStream, options?: any) {}
+  constructor(_stream: MediaStream, _options?: any) {}
   
   start = vi.fn();
   stop = vi.fn(() => {

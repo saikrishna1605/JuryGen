@@ -4,7 +4,7 @@ import { ArrowLeft, Download, Share2, Eye, EyeOff } from 'lucide-react';
 import { PDFViewer, ClauseHeatmap, ClauseDetailsPanel } from '../components/pdf';
 import { UserRole } from '../types/document';
 import { useDocument } from '../hooks/useDocument';
-import { useAuth } from '../contexts/AuthContext';
+// import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../utils';
 
 interface ViewerSettings {

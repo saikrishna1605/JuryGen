@@ -12,6 +12,15 @@ vi.mock('../lib/api', () => ({
 
 const mockApi = vi.mocked(api);
 
+// Helper function to create proper AxiosResponse mock
+const createMockResponse = (data: any) => ({
+  data,
+  status: 200,
+  statusText: 'OK',
+  headers: {},
+  config: {}
+} as any);
+
 describe('TranslationService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -23,24 +32,22 @@ describe('TranslationService', () => {
 
   describe('translateText', () => {
     it('should translate text successfully', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         data: {
-          data: {
-            originalText: 'Hello world',
-            translatedText: 'Hola mundo',
-            sourceLanguage: 'en',
-            targetLanguage: 'es',
-            confidence: 1.0,
-            qualityScore: 0.95,
-            processingTime: 0.5,
-            cached: false,
-            alternatives: [],
-            createdAt: '2023-01-01T00:00:00Z',
-          },
+          originalText: 'Hello world',
+          translatedText: 'Hola mundo',
+          sourceLanguage: 'en',
+          targetLanguage: 'es',
+          confidence: 1.0,
+          qualityScore: 0.95,
+          processingTime: 0.5,
+          cached: false,
+          alternatives: [],
+          createdAt: '2023-01-01T00:00:00Z',
         },
       };
 
-      mockApi.post.mockResolvedValueOnce(mockResponse);
+      mockApi.post.mockResolvedValueOnce(createMockResponse(mockResponseData));
 
       const result = await translationService.translateText('Hello world', 'es');
 
@@ -52,7 +59,7 @@ describe('TranslationService', () => {
         quality_threshold: 0.7,
       });
 
-      expect(result).toEqual(mockResponse.data.data);
+      expect(result).toEqual(mockResponseData.data);
     });
 
     it('should handle translation errors', async () => {
@@ -65,24 +72,22 @@ describe('TranslationService', () => {
     });
 
     it('should pass custom options', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         data: {
-          data: {
-            originalText: 'Hello world',
-            translatedText: 'Hola mundo',
-            sourceLanguage: 'en',
-            targetLanguage: 'es',
-            confidence: 1.0,
-            qualityScore: 0.95,
-            processingTime: 0.5,
-            cached: false,
-            alternatives: [],
-            createdAt: '2023-01-01T00:00:00Z',
-          },
+          originalText: 'Hello world',
+          translatedText: 'Hola mundo',
+          sourceLanguage: 'en',
+          targetLanguage: 'es',
+          confidence: 1.0,
+          qualityScore: 0.95,
+          processingTime: 0.5,
+          cached: false,
+          alternatives: [],
+          createdAt: '2023-01-01T00:00:00Z',
         },
       };
 
-      mockApi.post.mockResolvedValueOnce(mockResponse);
+      mockApi.post.mockResolvedValueOnce(createMockResponse(mockResponseData));
 
       await translationService.translateText('Hello world', 'es', {
         sourceLanguage: 'en',
@@ -102,46 +107,44 @@ describe('TranslationService', () => {
 
   describe('translateBatch', () => {
     it('should translate multiple texts', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         data: {
-          data: {
-            translations: [
-              {
-                originalText: 'Hello',
-                translatedText: 'Hola',
-                sourceLanguage: 'en',
-                targetLanguage: 'es',
-                confidence: 1.0,
-                qualityScore: 0.95,
-                processingTime: 0.3,
-                cached: false,
-                alternatives: [],
-                createdAt: '2023-01-01T00:00:00Z',
-              },
-              {
-                originalText: 'World',
-                translatedText: 'Mundo',
-                sourceLanguage: 'en',
-                targetLanguage: 'es',
-                confidence: 1.0,
-                qualityScore: 0.92,
-                processingTime: 0.2,
-                cached: true,
-                alternatives: [],
-                createdAt: '2023-01-01T00:00:00Z',
-              },
-            ],
-            totalProcessingTime: 0.5,
-            successCount: 2,
-            failureCount: 0,
-            cacheHitCount: 1,
-            cacheHitRate: 0.5,
-            createdAt: '2023-01-01T00:00:00Z',
-          },
+          translations: [
+            {
+              originalText: 'Hello',
+              translatedText: 'Hola',
+              sourceLanguage: 'en',
+              targetLanguage: 'es',
+              confidence: 1.0,
+              qualityScore: 0.95,
+              processingTime: 0.3,
+              cached: false,
+              alternatives: [],
+              createdAt: '2023-01-01T00:00:00Z',
+            },
+            {
+              originalText: 'World',
+              translatedText: 'Mundo',
+              sourceLanguage: 'en',
+              targetLanguage: 'es',
+              confidence: 1.0,
+              qualityScore: 0.92,
+              processingTime: 0.2,
+              cached: true,
+              alternatives: [],
+              createdAt: '2023-01-01T00:00:00Z',
+            },
+          ],
+          totalProcessingTime: 0.5,
+          successCount: 2,
+          failureCount: 0,
+          cacheHitCount: 1,
+          cacheHitRate: 0.5,
+          createdAt: '2023-01-01T00:00:00Z',
         },
       };
 
-      mockApi.post.mockResolvedValueOnce(mockResponse);
+      mockApi.post.mockResolvedValueOnce(createMockResponse(mockResponseData));
 
       const result = await translationService.translateBatch(['Hello', 'World'], 'es');
 
@@ -153,24 +156,22 @@ describe('TranslationService', () => {
         max_concurrent: 5,
       });
 
-      expect(result).toEqual(mockResponse.data.data);
+      expect(result).toEqual(mockResponseData.data);
     });
   });
 
   describe('detectLanguage', () => {
     it('should detect language successfully', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         data: {
-          data: {
-            language: 'en',
-            confidence: 0.95,
-            isReliable: true,
-            inputText: 'Hello world',
-          },
+          language: 'en',
+          confidence: 0.95,
+          isReliable: true,
+          inputText: 'Hello world',
         },
       };
 
-      mockApi.post.mockResolvedValueOnce(mockResponse);
+      mockApi.post.mockResolvedValueOnce(createMockResponse(mockResponseData));
 
       const result = await translationService.detectLanguage('Hello world');
 
@@ -184,23 +185,21 @@ describe('TranslationService', () => {
         }
       );
 
-      expect(result).toEqual(mockResponse.data.data);
+      expect(result).toEqual(mockResponseData.data);
     });
   });
 
   describe('getSupportedLanguages', () => {
     it('should get supported languages', async () => {
-      const mockResponse = {
-        data: {
-          data: [
-            { code: 'en', name: 'English' },
-            { code: 'es', name: 'Spanish' },
-            { code: 'fr', name: 'French' },
-          ],
-        },
+      const mockResponseData = {
+        data: [
+          { code: 'en', name: 'English' },
+          { code: 'es', name: 'Spanish' },
+          { code: 'fr', name: 'French' },
+        ],
       };
 
-      mockApi.get.mockResolvedValueOnce(mockResponse);
+      mockApi.get.mockResolvedValueOnce(createMockResponse(mockResponseData));
 
       const result = await translationService.getSupportedLanguages();
 
@@ -208,21 +207,19 @@ describe('TranslationService', () => {
         params: { target_language: 'en' },
       });
 
-      expect(result).toEqual(mockResponse.data.data);
+      expect(result).toEqual(mockResponseData.data);
     });
 
     it('should get supported languages in different target language', async () => {
-      const mockResponse = {
-        data: {
-          data: [
-            { code: 'en', name: 'Inglés' },
-            { code: 'es', name: 'Español' },
-            { code: 'fr', name: 'Francés' },
-          ],
-        },
+      const mockResponseData = {
+        data: [
+          { code: 'en', name: 'Inglés' },
+          { code: 'es', name: 'Español' },
+          { code: 'fr', name: 'Francés' },
+        ],
       };
 
-      mockApi.get.mockResolvedValueOnce(mockResponse);
+      mockApi.get.mockResolvedValueOnce(createMockResponse(mockResponseData));
 
       const result = await translationService.getSupportedLanguages('es');
 
@@ -230,7 +227,7 @@ describe('TranslationService', () => {
         params: { target_language: 'es' },
       });
 
-      expect(result).toEqual(mockResponse.data.data);
+      expect(result).toEqual(mockResponseData.data);
     });
   });
 

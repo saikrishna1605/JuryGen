@@ -143,8 +143,8 @@ export function checkColorContrast(): AccessibilityIssue[] {
 
   textElements.forEach((element) => {
     const styles = window.getComputedStyle(element);
-    const fontSize = parseFloat(styles.fontSize);
-    const fontWeight = styles.fontWeight;
+    // const fontSize = parseFloat(styles.fontSize);
+    // const fontWeight = styles.fontWeight;
     
     // This is a simplified check - in a real implementation, you'd calculate actual contrast ratios
     const textColor = styles.color;
@@ -383,7 +383,7 @@ export function highlightAccessibilityIssues(report: AccessibilityReport): void 
   // Remove existing highlights
   document.querySelectorAll('.accessibility-highlight').forEach(el => el.remove());
 
-  report.issues.forEach((issue, index) => {
+  report.issues.forEach((issue) => {
     if (!issue.element) return;
 
     const highlight = document.createElement('div');
