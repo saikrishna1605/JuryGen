@@ -7,7 +7,6 @@ import {
   Trash2,
   RefreshCw,
   Calendar,
-  Filter,
   Search,
 } from 'lucide-react';
 import { exportService, ExportResponse } from '../../services/exportService';

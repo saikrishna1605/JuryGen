@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 
 interface FirebaseTestResult {
   step: string;
@@ -37,7 +37,7 @@ const FirebaseTest: React.FC = () => {
       appId: import.meta.env.VITE_FIREBASE_APP_ID,
     };
 
-    const missingVars = Object.entries(envVars).filter(([key, value]) => !value);
+    const missingVars = Object.entries(envVars).filter(([, value]) => !value);
     
     if (missingVars.length > 0) {
       addResult({

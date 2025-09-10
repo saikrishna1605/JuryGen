@@ -40,7 +40,7 @@ export const ExportProgress: React.FC<ExportProgressProps> = ({
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { announceProgress, announceSuccess, announceError } = useAriaAnnouncements();
+  const { announceSuccess, announceError } = useAriaAnnouncements();
 
   // Define export stages
   const stages: ProgressStage[] = [
@@ -265,7 +265,7 @@ export const ExportProgress: React.FC<ExportProgressProps> = ({
       <div className="space-y-2">
         <h4 className="text-sm font-medium text-gray-700">Progress Stages</h4>
         <div className="space-y-2">
-          {progressStages.map((stage, index) => (
+          {progressStages.map((stage) => (
             <div key={stage.name} className="flex items-center space-x-3">
               <div className="flex-shrink-0">
                 {stage.completed ? (
