@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Download, Share2 } from 'lucide-react';
 import { RealTimeStatusDisplay, JobStatusCard } from '../components/progress';
 import { Job, ProcessingStatus } from '../types/job';
-import { useAuth } from '../contexts/AuthContext';
+// import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import { cn } from '../utils';
 

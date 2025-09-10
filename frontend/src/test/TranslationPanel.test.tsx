@@ -214,7 +214,7 @@ describe('TranslationPanel', () => {
       resolveTranslation = resolve;
     });
 
-    mockTranslationService.translateText.mockReturnValue(translationPromise);
+    mockTranslationService.translateText.mockReturnValue(translationPromise as Promise<any>);
 
     render(<TranslationPanel originalText="Hello world" />);
 

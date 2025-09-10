@@ -143,13 +143,17 @@ class VoiceQAService {
         message: 'Processing your question...'
       });
 
+      if (!request.documentId) {
+        throw new Error('Document ID is required for voice Q&A');
+      }
+
       const qaResponse = await qaService.askTextQuestion(
         question,
         request.documentId,
         {
-          sessionId: request.sessionId,
-        maxSources: 5
-      });
+          sessionId: request.sessionId
+        }
+      );
 
       // Step 3: Synthesize answer to speech
       this.updateProgress(requestId, {
@@ -208,7 +212,7 @@ class VoiceQAService {
         })),
         audioResponse,
         processingTime,
-        sessionId: request.sessionId || qaResponse.sessionId || `session_${Date.now()}`,
+        sessionId: request.sessionId || `session_${Date.now()}`,
         metadata: {
           transcriptionConfidence,
           synthesisQuality: audioResponse ? 0.9 : 0,
