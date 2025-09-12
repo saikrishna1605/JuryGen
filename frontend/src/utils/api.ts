@@ -102,6 +102,14 @@ const api = {
   },
 };
 
+// Helper function to construct API URLs
+export const getApiUrl = (path: string): string => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+  // Remove leading slash from path if present to avoid double slashes
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `${baseUrl}/${cleanPath}`;
+};
+
 // Export both the configured axios instance and the API wrapper
 export { apiClient };
 export default api;

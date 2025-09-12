@@ -5,9 +5,18 @@ Creates and manages alert policies for system monitoring,
 error tracking, and performance thresholds.
 """
 
-from typing import Dict, List, Any, Optional
-from google.cloud import monitoring_v3
-from google.cloud.monitoring_v3 import types
+from typing import Dict, List, Any, Optional, Union
+
+try:
+    from google.cloud import monitoring_v3
+    from google.cloud.monitoring_v3 import types
+    MONITORING_AVAILABLE = True
+    AlertPolicyType = types.AlertPolicy
+except ImportError:
+    MONITORING_AVAILABLE = False
+    monitoring_v3 = None
+    types = None
+    AlertPolicyType = Any
 
 from ..core.config import get_settings
 
@@ -18,12 +27,25 @@ class AlertManager:
     """Manages Cloud Monitoring alert policies."""
     
     def __init__(self):
-        self.client = monitoring_v3.AlertPolicyServiceClient()
-        self.project_id = settings.GOOGLE_CLOUD_PROJECT
-        self.project_name = f"projects/{self.project_id}"
+        if MONITORING_AVAILABLE:
+            self.client = monitoring_v3.AlertPolicyServiceClient()
+            self.project_id = settings.GOOGLE_CLOUD_PROJECT
+            self.project_name = f"projects/{self.project_id}"
+        else:
+            self.client = None
+            self.project_id = None
+            self.project_name = None
+    
+    def _check_monitoring_available(self):
+        """Check if monitoring is available and return appropriate response."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
+        return None
     
     async def create_high_error_rate_alert(self, notification_channels: List[str]) -> str:
         """Create alert for high error rate."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
         alert_policy = types.AlertPolicy(
             display_name="High Error Rate - AI Legal Companion",
             documentation=types.AlertPolicy.Documentation(
@@ -65,6 +87,8 @@ class AlertManager:
     
     async def create_high_cpu_usage_alert(self, notification_channels: List[str]) -> str:
         """Create alert for high CPU usage."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
         alert_policy = types.AlertPolicy(
             display_name="High CPU Usage - AI Legal Companion",
             documentation=types.AlertPolicy.Documentation(
@@ -102,6 +126,8 @@ class AlertManager:
     
     async def create_high_memory_usage_alert(self, notification_channels: List[str]) -> str:
         """Create alert for high memory usage."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
         alert_policy = types.AlertPolicy(
             display_name="High Memory Usage - AI Legal Companion",
             documentation=types.AlertPolicy.Documentation(
@@ -139,6 +165,8 @@ class AlertManager:
     
     async def create_slow_processing_alert(self, notification_channels: List[str]) -> str:
         """Create alert for slow document processing."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
         alert_policy = types.AlertPolicy(
             display_name="Slow Document Processing - AI Legal Companion",
             documentation=types.AlertPolicy.Documentation(
@@ -177,6 +205,8 @@ class AlertManager:
     
     async def create_system_health_alert(self, notification_channels: List[str]) -> str:
         """Create alert for system health degradation."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
         alert_policy = types.AlertPolicy(
             display_name="System Health Degraded - AI Legal Companion",
             documentation=types.AlertPolicy.Documentation(
@@ -214,6 +244,8 @@ class AlertManager:
     
     async def create_ai_model_latency_alert(self, notification_channels: List[str]) -> str:
         """Create alert for high AI model latency."""
+        if not MONITORING_AVAILABLE:
+            return "monitoring-disabled"
         alert_policy = types.AlertPolicy(
             display_name="High AI Model Latency - AI Legal Companion",
             documentation=types.AlertPolicy.Documentation(
@@ -292,6 +324,8 @@ class AlertManager:
         notification_channels: List[str]
     ) -> Dict[str, str]:
         """Set up all monitoring alerts."""
+        if not MONITORING_AVAILABLE:
+            return {"status": "monitoring-disabled"}
         alerts = {}
         
         try:
@@ -307,8 +341,10 @@ class AlertManager:
         except Exception as e:
             raise Exception(f"Failed to create alert policies: {e}")
     
-    async def list_alert_policies(self) -> List[types.AlertPolicy]:
+    async def list_alert_policies(self) -> List[AlertPolicyType]:
         """List all alert policies."""
+        if not MONITORING_AVAILABLE:
+            return []
         policies = []
         
         for policy in self.client.list_alert_policies(parent=self.project_name):
@@ -318,8 +354,10 @@ class AlertManager:
     
     async def delete_alert_policy(self, policy_name: str):
         """Delete an alert policy."""
+        if not MONITORING_AVAILABLE:
+            return
         self.client.delete_alert_policy(name=policy_name)
 
 
 # Singleton instance
-alert_manager = AlertManager()
+alert_manager = AlertManager() if MONITORING_AVAILABLE else None

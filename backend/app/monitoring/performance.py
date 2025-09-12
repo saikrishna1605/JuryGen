@@ -16,11 +16,16 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from google.cloud import monitoring_v3
-from google.cloud import trace_v1
+try:
+    from google.cloud import monitoring_v3
+    from google.cloud import trace_v1
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    monitoring_v3 = None
+    trace_v1 = None
 
 from ..core.config import get_settings
-from ..services.monitoring import monitoring_service
 
 settings = get_settings()
 
@@ -53,10 +58,16 @@ class PerformanceMonitor:
     """Monitors system and application performance."""
     
     def __init__(self):
-        self.monitoring_client = monitoring_v3.MetricServiceClient()
-        self.trace_client = trace_v1.TraceServiceClient()
-        self.project_id = settings.GOOGLE_CLOUD_PROJECT
-        self.project_name = f"projects/{self.project_id}"
+        if MONITORING_AVAILABLE:
+            self.monitoring_client = monitoring_v3.MetricServiceClient()
+            self.trace_client = trace_v1.TraceServiceClient()
+            self.project_id = settings.GOOGLE_CLOUD_PROJECT
+            self.project_name = f"projects/{self.project_id}"
+        else:
+            self.monitoring_client = None
+            self.trace_client = None
+            self.project_id = None
+            self.project_name = None
         
         # Performance tracking
         self._request_metrics: List[RequestMetrics] = []
@@ -458,4 +469,4 @@ class PerformanceMonitor:
 
 
 # Singleton instance
-performance_monitor = PerformanceMonitor()
+performance_monitor = PerformanceMonitor() if MONITORING_AVAILABLE else None

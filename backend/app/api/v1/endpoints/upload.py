@@ -69,7 +69,8 @@ async def create_upload_url(
         )
         
         # Generate signed upload URL
-        blob_name = f"documents/{current_user["uid"]}/{document_id}/{request.filename}"
+        user_id = current_user["uid"]
+        blob_name = f"documents/{user_id}/{document_id}/{request.filename}"
         upload_url = await storage_service.generate_signed_upload_url(
             blob_name=blob_name,
             content_type=request.content_type,

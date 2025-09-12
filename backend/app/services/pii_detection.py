@@ -16,8 +16,15 @@ import json
 import re
 from enum import Enum
 
-from google.cloud import dlp_v2
-from google.api_core import exceptions as gcp_exceptions
+# Optional Google Cloud imports
+try:
+    from google.cloud import dlp_v2
+    from google.api_core import exceptions as gcp_exceptions
+    GOOGLE_CLOUD_AVAILABLE = True
+except ImportError:
+    dlp_v2 = None
+    gcp_exceptions = None
+    GOOGLE_CLOUD_AVAILABLE = False
 
 from ..core.config import get_settings
 from ..core.exceptions import PIIDetectionError
@@ -98,11 +105,25 @@ class PIIDetectionService:
     
     def __init__(self):
         """Initialize the PII detection service."""
+        if not GOOGLE_CLOUD_AVAILABLE:
+            logger.warning("Google Cloud libraries not available - PII detection functionality disabled")
+            self.dlp_client = None
+            self.firestore_service = None
+            return
+            
         # Initialize DLP client
-        self.dlp_client = dlp_v2.DlpServiceClient()
+        try:
+            self.dlp_client = dlp_v2.DlpServiceClient()
+        except Exception as e:
+            logger.warning(f"Failed to initialize DLP client: {e}")
+            self.dlp_client = None
         
         # Initialize Firestore for audit logging
-        self.firestore_service = FirestoreService()
+        try:
+            self.firestore_service = FirestoreService()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Firestore service: {e}")
+            self.firestore_service = None
         
         # Project configuration
         self.project_id = settings.DLP_PROJECT_ID or settings.GOOGLE_CLOUD_PROJECT

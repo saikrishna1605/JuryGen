@@ -11,16 +11,22 @@ Provides comprehensive health monitoring including:
 import asyncio
 import aiohttp
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from dataclasses import dataclass
 from enum import Enum
 
-from google.cloud import firestore
-from google.cloud import storage
-from google.cloud import aiplatform
+try:
+    from google.cloud import firestore
+    from google.cloud import storage
+    from google.cloud import aiplatform
+    HEALTH_CHECKS_AVAILABLE = True
+except ImportError:
+    HEALTH_CHECKS_AVAILABLE = False
+    firestore = None
+    storage = None
+    aiplatform = None
 
 from ..core.config import get_settings
-from ..services.monitoring import monitoring_service
 
 settings = get_settings()
 
@@ -48,12 +54,16 @@ class HealthChecker:
     """Performs comprehensive health checks."""
     
     def __init__(self):
-        self.firestore_client = firestore.Client()
-        self.storage_client = storage.Client()
+        if HEALTH_CHECKS_AVAILABLE:
+            self.firestore_client = firestore.Client()
+            self.storage_client = storage.Client()
+        else:
+            self.firestore_client = None
+            self.storage_client = None
         
         # Health check history
         self._health_history: Dict[str, List[HealthCheckResult]] = {}
-        self._last_check_time = datetime.utcnow()
+        self._last_check_time = datetime.now(UTC)
     
     async def run_all_health_checks(self) -> Dict[str, HealthCheckResult]:
         """Run all health checks and return results."""
@@ -77,7 +87,7 @@ class HealthChecker:
                     status=HealthStatus.UNHEALTHY,
                     message=f"Health check failed: {result}",
                     response_time=0.0,
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(UTC)
                 )
             else:
                 health_results[result.component] = result
@@ -90,47 +100,47 @@ class HealthChecker:
             self._health_history[component].append(result)
             
             # Keep only last 24 hours
-            cutoff_time = datetime.utcnow() - timedelta(hours=24)
+            cutoff_time = datetime.now(UTC) - timedelta(hours=24)
             self._health_history[component] = [
                 r for r in self._health_history[component]
                 if r.timestamp >= cutoff_time
             ]
         
-        self._last_check_time = datetime.utcnow()
+        self._last_check_time = datetime.now(UTC)
         
         return health_results
     
     async def check_api_health(self) -> HealthCheckResult:
         """Check API endpoint health."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         
         try:
             # Simple internal health check
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="api",
                 status=HealthStatus.HEALTHY,
                 message="API is responding normally",
                 response_time=response_time,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 details={"endpoint": "/health"}
             )
             
         except Exception as e:
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="api",
                 status=HealthStatus.UNHEALTHY,
                 message=f"API health check failed: {e}",
                 response_time=response_time,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )
     
     async def check_database_health(self) -> HealthCheckResult:
         """Check Firestore database health."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         
         try:
             # Test database connection with a simple query
@@ -138,7 +148,7 @@ class HealthChecker:
             test_doc = test_collection.document("test")
             
             # Write test document
-            await test_doc.set({"timestamp": datetime.utcnow()})
+            await test_doc.set({"timestamp": datetime.now(UTC)})
             
             # Read test document
             doc = await test_doc.get()
@@ -146,7 +156,7 @@ class HealthChecker:
             # Clean up test document
             await test_doc.delete()
             
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             if doc.exists:
                 return HealthCheckResult(
@@ -154,7 +164,7 @@ class HealthChecker:
                     status=HealthStatus.HEALTHY,
                     message="Database is accessible and responsive",
                     response_time=response_time,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     details={"operation": "read/write test"}
                 )
             else:
@@ -163,23 +173,23 @@ class HealthChecker:
                     status=HealthStatus.DEGRADED,
                     message="Database write succeeded but read failed",
                     response_time=response_time,
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(UTC)
                 )
                 
         except Exception as e:
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="database",
                 status=HealthStatus.UNHEALTHY,
                 message=f"Database health check failed: {e}",
                 response_time=response_time,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )    
 
     async def check_storage_health(self) -> HealthCheckResult:
         """Check Cloud Storage health."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         
         try:
             # Test storage connection
@@ -188,7 +198,7 @@ class HealthChecker:
             
             # Test write operation
             test_blob = bucket.blob("health_check/test.txt")
-            test_content = f"Health check at {datetime.utcnow().isoformat()}"
+            test_content = f"Health check at {datetime.now(UTC).isoformat()}"
             
             test_blob.upload_from_string(test_content)
             
@@ -198,7 +208,7 @@ class HealthChecker:
             # Clean up test file
             test_blob.delete()
             
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             if downloaded_content == test_content:
                 return HealthCheckResult(
@@ -206,7 +216,7 @@ class HealthChecker:
                     status=HealthStatus.HEALTHY,
                     message="Storage is accessible and responsive",
                     response_time=response_time,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     details={"bucket": bucket_name, "operation": "read/write test"}
                 )
             else:
@@ -215,23 +225,23 @@ class HealthChecker:
                     status=HealthStatus.DEGRADED,
                     message="Storage write succeeded but read returned different content",
                     response_time=response_time,
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(UTC)
                 )
                 
         except Exception as e:
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="storage",
                 status=HealthStatus.UNHEALTHY,
                 message=f"Storage health check failed: {e}",
                 response_time=response_time,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )
     
     async def check_ai_services_health(self) -> HealthCheckResult:
         """Check AI services health."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         
         try:
             # Initialize Vertex AI
@@ -243,31 +253,31 @@ class HealthChecker:
             # Test simple prediction (this is a lightweight check)
             # In a real implementation, you might want to test actual model endpoints
             
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="ai_services",
                 status=HealthStatus.HEALTHY,
                 message="AI services are accessible",
                 response_time=response_time,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 details={"project": settings.GOOGLE_CLOUD_PROJECT, "location": settings.VERTEX_AI_LOCATION}
             )
             
         except Exception as e:
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="ai_services",
                 status=HealthStatus.UNHEALTHY,
                 message=f"AI services health check failed: {e}",
                 response_time=response_time,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )
     
     async def check_external_services_health(self) -> HealthCheckResult:
         """Check external services health."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         
         try:
             # Test external service connectivity
@@ -278,41 +288,41 @@ class HealthChecker:
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as response:
                     if response.status == 200:
-                        response_time = (datetime.utcnow() - start_time).total_seconds()
+                        response_time = (datetime.now(UTC) - start_time).total_seconds()
                         
                         return HealthCheckResult(
                             component="external_services",
                             status=HealthStatus.HEALTHY,
                             message="External services are accessible",
                             response_time=response_time,
-                            timestamp=datetime.utcnow(),
+                            timestamp=datetime.now(UTC),
                             details={"tested_service": "Google APIs"}
                         )
                     else:
-                        response_time = (datetime.utcnow() - start_time).total_seconds()
+                        response_time = (datetime.now(UTC) - start_time).total_seconds()
                         
                         return HealthCheckResult(
                             component="external_services",
                             status=HealthStatus.DEGRADED,
                             message=f"External service returned status {response.status}",
                             response_time=response_time,
-                            timestamp=datetime.utcnow()
+                            timestamp=datetime.now(UTC)
                         )
                         
         except Exception as e:
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="external_services",
                 status=HealthStatus.UNHEALTHY,
                 message=f"External services health check failed: {e}",
                 response_time=response_time,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )
     
     async def check_system_resources(self) -> HealthCheckResult:
         """Check system resource health."""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC)
         
         try:
             import psutil
@@ -328,7 +338,7 @@ class HealthChecker:
             disk = psutil.disk_usage('/')
             disk_usage = (disk.used / disk.total) * 100
             
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             # Determine status based on resource usage
             status = HealthStatus.HEALTHY
@@ -346,7 +356,7 @@ class HealthChecker:
                 status=status,
                 message=message,
                 response_time=response_time,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 details={
                     "cpu_usage": cpu_usage,
                     "memory_usage": memory_usage,
@@ -355,14 +365,14 @@ class HealthChecker:
             )
             
         except Exception as e:
-            response_time = (datetime.utcnow() - start_time).total_seconds()
+            response_time = (datetime.now(UTC) - start_time).total_seconds()
             
             return HealthCheckResult(
                 component="system_resources",
                 status=HealthStatus.UNHEALTHY,
                 message=f"System resource check failed: {e}",
                 response_time=response_time,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(UTC)
             )
     
     async def get_overall_health(self) -> Tuple[HealthStatus, Dict[str, Any]]:
@@ -411,7 +421,7 @@ class HealthChecker:
     
     async def get_health_trends(self, hours: int = 24) -> Dict[str, Any]:
         """Get health trends over time."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         
         trends = {}
         
@@ -452,4 +462,4 @@ class HealthChecker:
 
 
 # Singleton instance
-health_checker = HealthChecker()
+health_checker = HealthChecker() if HEALTH_CHECKS_AVAILABLE else None

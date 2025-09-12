@@ -14,6 +14,23 @@ class LegalCompanionError(Exception):
         super().__init__(self.message)
 
 
+class LegalCompanionException(Exception):
+    """HTTP exception for Legal Companion application."""
+    
+    def __init__(
+        self, 
+        message: str, 
+        status_code: int = 500, 
+        error_code: str = "internal_error",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        self.message = message
+        self.status_code = status_code
+        self.error_code = error_code
+        self.details = details or {}
+        super().__init__(self.message)
+
+
 class ValidationError(LegalCompanionError):
     """Raised when data validation fails."""
     pass
@@ -116,4 +133,19 @@ class PIIDetectionError(LegalCompanionError):
 
 class JurisdictionAnalysisError(LegalCompanionError):
     """Raised when jurisdiction analysis fails."""
+    pass
+
+
+class MonitoringError(LegalCompanionError):
+    """Raised when monitoring operations fail."""
+    pass
+
+
+class DocumentError(LegalCompanionError):
+    """Raised when document operations fail."""
+    pass
+
+
+class ProcessingError(LegalCompanionError):
+    """Raised when document processing fails."""
     pass

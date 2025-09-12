@@ -13,6 +13,7 @@ import {
   Globe,
   Zap
 } from 'lucide-react';
+import { getApiUrl } from '../utils/api';
 
 interface Document {
   id: string;
@@ -73,7 +74,7 @@ const TranslationPage = () => {
   const fetchDocuments = async () => {
     try {
       const token = await currentUser?.getIdToken();
-      const response = await fetch('/api/v1/documents', {
+      const response = await fetch(getApiUrl('v1/documents'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -92,7 +93,7 @@ const TranslationPage = () => {
   const fetchAvailableLanguages = async () => {
     try {
       const token = await currentUser?.getIdToken();
-      const response = await fetch('/api/v1/translation/languages', {
+      const response = await fetch(getApiUrl('v1/translation/languages'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -127,7 +128,7 @@ const TranslationPage = () => {
   const fetchTranslationHistory = async () => {
     try {
       const token = await currentUser?.getIdToken();
-      const response = await fetch('/api/v1/translation/history', {
+      const response = await fetch(getApiUrl('v1/translation/history'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -177,7 +178,7 @@ const TranslationPage = () => {
         };
       }
 
-      const response = await fetch('/api/v1/translation/translate', {
+      const response = await fetch(getApiUrl('v1/translation/translate'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -210,7 +211,7 @@ const TranslationPage = () => {
 
     try {
       const token = await currentUser?.getIdToken();
-      const response = await fetch('/api/v1/translation/detect', {
+      const response = await fetch(getApiUrl('v1/translation/detect'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -236,7 +237,7 @@ const TranslationPage = () => {
   const speakText = async (text: string, languageCode: string) => {
     try {
       const token = await currentUser?.getIdToken();
-      const response = await fetch('/api/v1/speech/synthesize', {
+      const response = await fetch(getApiUrl('v1/speech/synthesize'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

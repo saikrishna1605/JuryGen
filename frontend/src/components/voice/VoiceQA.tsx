@@ -11,6 +11,7 @@ import {
 import { VoiceInput } from './VoiceInput';
 import { speechService } from '../../services/speechService';
 import { cn } from '../../utils';
+import { getApiUrl } from '../../utils/api';
 
 interface VoiceQAProps {
   documentId: string;
@@ -128,7 +129,7 @@ export const VoiceQA: React.FC<VoiceQAProps> = ({
       formData.append('speaking_rate', (voiceSettings.speakingRate || 1.0).toString());
 
       // Call Q&A API
-      const response = await fetch('/api/v1/qa/ask-voice', {
+      const response = await fetch(getApiUrl('v1/qa/ask-voice'), {
         method: 'POST',
         body: formData,
         headers: {
@@ -185,7 +186,7 @@ export const VoiceQA: React.FC<VoiceQAProps> = ({
     setShowSuggestions(false);
 
     try {
-      const response = await fetch('/api/v1/qa/ask', {
+      const response = await fetch(getApiUrl('v1/qa/ask'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

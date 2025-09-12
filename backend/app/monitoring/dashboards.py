@@ -7,8 +7,15 @@ performance metrics, and application observability.
 
 import json
 from typing import Dict, List, Any
-from google.cloud import monitoring_dashboard_v1
-from google.cloud.monitoring_dashboard_v1 import types
+
+try:
+    from google.cloud import monitoring_dashboard_v1
+    from google.cloud.monitoring_dashboard_v1 import types
+    DASHBOARD_AVAILABLE = True
+except ImportError:
+    DASHBOARD_AVAILABLE = False
+    monitoring_dashboard_v1 = None
+    types = None
 
 from ..core.config import get_settings
 
@@ -19,9 +26,14 @@ class DashboardManager:
     """Manages Cloud Monitoring dashboards."""
     
     def __init__(self):
-        self.client = monitoring_dashboard_v1.DashboardsServiceClient()
-        self.project_id = settings.GOOGLE_CLOUD_PROJECT
-        self.project_name = f"projects/{self.project_id}"
+        if DASHBOARD_AVAILABLE:
+            self.client = monitoring_dashboard_v1.DashboardsServiceClient()
+            self.project_id = settings.GOOGLE_CLOUD_PROJECT
+            self.project_name = f"projects/{self.project_id}"
+        else:
+            self.client = None
+            self.project_id = None
+            self.project_name = None
     
     async def create_system_health_dashboard(self) -> str:
         """Create system health monitoring dashboard."""
@@ -424,4 +436,4 @@ class DashboardManager:
 
 
 # Singleton instance
-dashboard_manager = DashboardManager()
+dashboard_manager = DashboardManager() if DASHBOARD_AVAILABLE else None

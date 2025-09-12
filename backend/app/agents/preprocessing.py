@@ -15,12 +15,48 @@ from pathlib import Path
 import io
 import mimetypes
 
-import numpy as np
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
-import cv2
-import PyPDF2
-from docx import Document as DocxDocument
-import magic
+# Optional imports for document processing
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    np = None
+    NUMPY_AVAILABLE = False
+
+try:
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+    PIL_AVAILABLE = True
+except ImportError:
+    Image = ImageEnhance = ImageFilter = ImageOps = None
+    PIL_AVAILABLE = False
+
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    cv2 = None
+    CV2_AVAILABLE = False
+
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PyPDF2 = None
+    PYPDF2_AVAILABLE = False
+
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DocxDocument = None
+    DOCX_AVAILABLE = False
+
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    magic = None
+    MAGIC_AVAILABLE = False
 
 from ..core.exceptions import DocumentFormatError, ProcessingException
 
@@ -37,6 +73,17 @@ class DocumentPreprocessor:
     
     def __init__(self):
         """Initialize document preprocessor."""
+        if not PIL_AVAILABLE:
+            logger.warning("PIL not available - image preprocessing disabled")
+        if not CV2_AVAILABLE:
+            logger.warning("OpenCV not available - advanced image processing disabled")
+        if not PYPDF2_AVAILABLE:
+            logger.warning("PyPDF2 not available - PDF text extraction disabled")
+        if not DOCX_AVAILABLE:
+            logger.warning("python-docx not available - DOCX processing disabled")
+        if not MAGIC_AVAILABLE:
+            logger.warning("python-magic not available - file type detection disabled")
+            
         self.supported_formats = {
             'application/pdf': self._extract_pdf_text,
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': self._extract_docx_text,

@@ -15,12 +15,38 @@ from pathlib import Path
 import io
 import base64
 
-from google.cloud import documentai
-from google.cloud import vision
-from google.api_core import exceptions as gcp_exceptions
-from PIL import Image
-import PyPDF2
-from docx import Document as DocxDocument
+# Optional Google Cloud imports
+try:
+    from google.cloud import documentai
+    from google.cloud import vision
+    from google.api_core import exceptions as gcp_exceptions
+    GOOGLE_CLOUD_AVAILABLE = True
+except ImportError:
+    documentai = None
+    vision = None
+    gcp_exceptions = None
+    GOOGLE_CLOUD_AVAILABLE = False
+# Optional document processing imports
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    Image = None
+    PIL_AVAILABLE = False
+
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PyPDF2 = None
+    PYPDF2_AVAILABLE = False
+
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DocxDocument = None
+    DOCX_AVAILABLE = False
 
 from ..core.config import get_settings
 from ..models.document import ProcessedDocument, OCRResult, DocumentLayout
@@ -41,25 +67,45 @@ class OCRAgent:
     
     def __init__(self):
         """Initialize OCR agent with Google Cloud clients."""
+        if not GOOGLE_CLOUD_AVAILABLE:
+            logger.warning("Google Cloud libraries not available - OCR functionality disabled")
+            self.doc_ai_client = None
+            self.vision_client = None
+            self.preprocessor = None
+            return
+            
         self.project_id = settings.GOOGLE_CLOUD_PROJECT
         self.location = settings.DOCUMENT_AI_LOCATION or "us"
         self.processor_id = settings.DOCUMENT_AI_PROCESSOR_ID
         
         # Initialize Document AI client
         if self.processor_id:
-            self.doc_ai_client = documentai.DocumentProcessorServiceClient()
-            self.processor_name = self.doc_ai_client.processor_path(
-                self.project_id, self.location, self.processor_id
-            )
+            try:
+                self.doc_ai_client = documentai.DocumentProcessorServiceClient()
+                self.processor_name = self.doc_ai_client.processor_path(
+                    self.project_id, self.location, self.processor_id
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize Document AI client: {e}")
+                self.doc_ai_client = None
         else:
             self.doc_ai_client = None
             logger.warning("Document AI processor not configured, using Vision API only")
         
         # Initialize Vision API client as fallback
-        self.vision_client = vision.ImageAnnotatorClient()
+        try:
+            self.vision_client = vision.ImageAnnotatorClient()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Vision API client: {e}")
+            self.vision_client = None
         
         # Initialize document preprocessor
-        self.preprocessor = DocumentPreprocessor()
+        try:
+            from .preprocessing import DocumentPreprocessor
+            self.preprocessor = DocumentPreprocessor()
+        except ImportError:
+            logger.warning("Document preprocessor not available")
+            self.preprocessor = None
         
     async def process_document(
         self, 
@@ -82,6 +128,9 @@ class OCRAgent:
             OCRProcessingError: If OCR processing fails
             DocumentFormatError: If document format is unsupported
         """
+        if not GOOGLE_CLOUD_AVAILABLE:
+            raise OCRProcessingError("Google Cloud libraries not available - OCR functionality disabled")
+            
         try:
             logger.info(f"Starting OCR processing for {filename} ({content_type})")
             
@@ -144,6 +193,9 @@ class OCRAgent:
     
     async def _process_docx(self, file_content: bytes, filename: str) -> OCRResult:
         """Process DOCX by extracting text directly."""
+        if not DOCX_AVAILABLE:
+            raise OCRProcessingError("python-docx library not available - DOCX processing disabled")
+            
         try:
             # DOCX files contain structured text, no OCR needed
             doc = DocxDocument(io.BytesIO(file_content))
@@ -241,6 +293,9 @@ class OCRAgent:
     
     async def _process_pdf_with_vision(self, file_content: bytes, filename: str) -> OCRResult:
         """Process PDF by converting to images and using Vision API."""
+        if not PYPDF2_AVAILABLE:
+            raise OCRProcessingError("PyPDF2 library not available - PDF processing disabled")
+            
         try:
             # Read PDF and convert pages to images
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
@@ -364,6 +419,9 @@ class OCRAgent:
     
     def _detect_image_type(self, file_content: bytes) -> str:
         """Detect image MIME type from file content."""
+        if not PIL_AVAILABLE:
+            return 'image/jpeg'  # Default fallback
+            
         try:
             image = Image.open(io.BytesIO(file_content))
             format_to_mime = {
@@ -377,7 +435,7 @@ class OCRAgent:
         except Exception:
             return 'image/jpeg'  # Default fallback
     
-    def _calculate_average_confidence(self, document: documentai.Document) -> float:
+    def _calculate_average_confidence(self, document) -> float:
         """Calculate average confidence score from Document AI result."""
         confidences = []
         
@@ -388,7 +446,7 @@ class OCRAgent:
                     
         return sum(confidences) / len(confidences) if confidences else 0.8
     
-    def _extract_layout_from_document_ai(self, document: documentai.Document) -> DocumentLayout:
+    def _extract_layout_from_document_ai(self, document) -> DocumentLayout:
         """Extract layout information from Document AI result."""
         pages = []
         
@@ -438,7 +496,7 @@ class OCRAgent:
         
         return "".join(text_segments)
     
-    def _detect_language(self, document: documentai.Document) -> str:
+    def _detect_language(self, document) -> str:
         """Detect document language from Document AI result."""
         # Simple language detection - could be enhanced
         for page in document.pages:
@@ -458,6 +516,10 @@ class OCRAgent:
         Returns:
             Preprocessed image bytes
         """
+        if not PIL_AVAILABLE:
+            logger.warning("PIL library not available - returning original image")
+            return image_content
+            
         try:
             # Open image with PIL
             image = Image.open(io.BytesIO(image_content))

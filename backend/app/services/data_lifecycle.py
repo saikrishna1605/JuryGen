@@ -15,10 +15,19 @@ from datetime import datetime, timedelta
 from enum import Enum
 import json
 
-from google.cloud import storage
-from google.cloud import firestore
-from google.cloud import scheduler_v1
-from google.api_core import exceptions as gcp_exceptions
+# Optional Google Cloud imports
+try:
+    from google.cloud import storage
+    from google.cloud import firestore
+    from google.cloud import scheduler_v1
+    from google.api_core import exceptions as gcp_exceptions
+    GOOGLE_CLOUD_AVAILABLE = True
+except ImportError:
+    storage = None
+    firestore = None
+    scheduler_v1 = None
+    gcp_exceptions = None
+    GOOGLE_CLOUD_AVAILABLE = False
 
 from ..core.config import get_settings
 from ..core.exceptions import DatabaseError, StorageError, ConfigurationError
@@ -79,10 +88,31 @@ class DataLifecycleService:
     
     def __init__(self):
         """Initialize the data lifecycle service."""
+        if not GOOGLE_CLOUD_AVAILABLE:
+            logger.warning("Google Cloud libraries not available - data lifecycle functionality disabled")
+            self.storage_client = None
+            self.firestore_service = None
+            self.scheduler_client = None
+            return
+            
         # Initialize clients
-        self.storage_client = storage.Client()
-        self.firestore_service = FirestoreService()
-        self.scheduler_client = scheduler_v1.CloudSchedulerClient()
+        try:
+            self.storage_client = storage.Client()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Storage client: {e}")
+            self.storage_client = None
+            
+        try:
+            self.firestore_service = FirestoreService()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Firestore service: {e}")
+            self.firestore_service = None
+            
+        try:
+            self.scheduler_client = scheduler_v1.CloudSchedulerClient()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Scheduler client: {e}")
+            self.scheduler_client = None
         
         # Project configuration
         self.project_id = settings.GOOGLE_CLOUD_PROJECT

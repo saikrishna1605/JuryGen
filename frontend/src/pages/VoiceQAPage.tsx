@@ -13,6 +13,7 @@ import {
   Trash2,
   Download
 } from 'lucide-react';
+import { getApiUrl } from '../utils/api';
 
 interface VoiceQASession {
   id: string;
@@ -76,7 +77,7 @@ const VoiceQAPage = () => {
   const fetchDocuments = async () => {
     try {
       const token = await currentUser?.getIdToken();
-      const response = await fetch('/api/v1/documents', {
+      const response = await fetch(getApiUrl('v1/documents'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -173,7 +174,7 @@ const VoiceQAPage = () => {
       formData.append('voice_gender', voiceSettings.gender);
       formData.append('speaking_rate', voiceSettings.speed.toString());
 
-      const response = await fetch('/api/v1/qa/ask-voice', {
+      const response = await fetch(getApiUrl('v1/qa/ask-voice'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

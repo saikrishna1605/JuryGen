@@ -18,6 +18,7 @@ import {
   Users,
   Globe
 } from 'lucide-react';
+import { getApiUrl } from '../utils/api';
 
 interface Document {
   id: string;
@@ -63,7 +64,7 @@ const DashboardPage: React.FC = () => {
       const token = await currentUser?.getIdToken();
       
       // Fetch recent documents
-      const documentsResponse = await fetch('/api/v1/documents', {
+      const documentsResponse = await fetch(getApiUrl('v1/documents'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

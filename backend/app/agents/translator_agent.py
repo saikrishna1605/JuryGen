@@ -14,8 +14,22 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 import json
 
-from crewai import Agent, Task, Crew
-from crewai.tools import BaseTool
+try:
+    from crewai import Agent, Task, Crew
+    from crewai.tools import BaseTool
+    CREWAI_AVAILABLE = True
+except ImportError:
+    CREWAI_AVAILABLE = False
+    # Create dummy classes for type hints
+    class Agent:
+        pass
+    class Task:
+        pass
+    class Crew:
+        pass
+    class BaseTool:
+        pass
+
 from pydantic import BaseModel, Field
 
 from ..core.config import get_settings
@@ -46,7 +60,7 @@ class TranslationOutput(BaseModel):
     """Represents the output of a translation task."""
     
     task_id: str
-    translations: Dict[str, TranslationResult]
+    translations: Dict[str, Any]
     audio_outputs: Dict[str, Any] = Field(default_factory=dict)
     legal_term_glossary: Dict[str, Dict[str, str]] = Field(default_factory=dict)
     cultural_notes: Dict[str, List[str]] = Field(default_factory=dict)
@@ -55,14 +69,15 @@ class TranslationOutput(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class LegalTerminologyTool(BaseTool):
+class LegalTerminologyTool(BaseTool if CREWAI_AVAILABLE else object):
     """Tool for handling legal terminology translations."""
     
     name: str = "legal_terminology_tool"
     description: str = "Translate legal terms with consistency and accuracy"
     
     def __init__(self):
-        super().__init__()
+        if CREWAI_AVAILABLE:
+            super().__init__()
         # Legal term dictionary for consistent translations
         self.legal_terms = {
             "en": {
@@ -97,7 +112,7 @@ class LegalTerminologyTool(BaseTool):
             return term
 
 
-class CulturalAdaptationTool(BaseTool):
+class CulturalAdaptationTool(BaseTool if CREWAI_AVAILABLE else object):
     """Tool for cultural adaptation of legal content."""
     
     name: str = "cultural_adaptation_tool"
@@ -155,6 +170,14 @@ class TranslatorAgent:
     
     def __init__(self):
         """Initialize the Translator Agent."""
+        if not CREWAI_AVAILABLE:
+            logger.warning("CrewAI not available - Translator Agent functionality limited")
+            self.agent = None
+            self.legal_terminology_tool = None
+            self.cultural_adaptation_tool = None
+            self.translation_cache: Dict[str, Dict[str, str]] = {}
+            return
+            
         try:
             # Initialize tools
             self.legal_terminology_tool = LegalTerminologyTool()
@@ -193,6 +216,9 @@ class TranslatorAgent:
         Returns:
             TranslationOutput with translations and metadata
         """
+        if not CREWAI_AVAILABLE:
+            raise WorkflowError("CrewAI not available - translation functionality disabled")
+            
         start_time = datetime.utcnow()
         
         try:

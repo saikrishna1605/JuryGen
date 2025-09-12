@@ -15,11 +15,16 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
 
-from google.cloud import error_reporting
-from google.cloud import logging
+try:
+    from google.cloud import error_reporting
+    from google.cloud import logging
+    ERROR_REPORTING_AVAILABLE = True
+except ImportError:
+    ERROR_REPORTING_AVAILABLE = False
+    error_reporting = None
+    logging = None
 
 from ..core.config import get_settings
-from ..services.monitoring import monitoring_service
 
 settings = get_settings()
 
@@ -65,9 +70,14 @@ class ErrorReporter:
     """Handles error reporting and tracking."""
     
     def __init__(self):
-        self.error_client = error_reporting.Client()
-        self.logging_client = logging.Client()
-        self.logger = self.logging_client.logger("ai-legal-companion-errors")
+        if ERROR_REPORTING_AVAILABLE:
+            self.error_client = error_reporting.Client()
+            self.logging_client = logging.Client()
+            self.logger = self.logging_client.logger("ai-legal-companion-errors")
+        else:
+            self.error_client = None
+            self.logging_client = None
+            self.logger = None
         
         # Error tracking
         self._error_history: List[ErrorReport] = []
@@ -124,9 +134,9 @@ class ErrorReporter:
         # Record metrics
         await self._record_error_metrics(error_report)
         
-        return error_id    
-   
- async def get_error_summary(
+        return error_id
+    
+    async def get_error_summary(
         self,
         hours: int = 24
     ) -> Dict[str, Any]:
@@ -313,4 +323,4 @@ class ErrorReporter:
 
 
 # Singleton instance
-error_reporter = ErrorReporter()
+error_reporter = ErrorReporter() if ERROR_REPORTING_AVAILABLE else None

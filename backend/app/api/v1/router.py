@@ -108,3 +108,13 @@ try:
     )
 except ImportError:
     pass  # PII endpoints not available in minimal mode
+
+# Include documents endpoints
+try:
+    from .endpoints import documents
+    api_router.include_router(
+        documents.router,
+        tags=["documents"]
+    )
+except ImportError:
+    pass  # Documents endpoints not available in minimal mode

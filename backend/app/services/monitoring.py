@@ -20,10 +20,18 @@ import traceback
 from functools import wraps
 from contextlib import asynccontextmanager
 
-from google.cloud import monitoring_v3
-from google.cloud import error_reporting
-from google.cloud import logging as cloud_logging
-from google.api_core import exceptions as gcp_exceptions
+try:
+    from google.cloud import monitoring as monitoring
+    from google.cloud import error_reporting
+    from google.cloud import logging as cloud_logging
+    from google.api_core import exceptions as gcp_exceptions
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    monitoring = None
+    error_reporting = None
+    cloud_logging = None
+    gcp_exceptions = None
 import psutil
 import aiohttp
 
@@ -70,10 +78,16 @@ class MonitoringService:
     
     def __init__(self):
         """Initialize the monitoring service."""
-        # Initialize clients
-        self.metrics_client = monitoring_v3.MetricServiceClient()
-        self.error_client = error_reporting.Client()
-        self.logging_client = cloud_logging.Client()
+        if not MONITORING_AVAILABLE:
+            logger.warning("Google Cloud monitoring libraries not available - monitoring disabled")
+            self.metrics_client = None
+            self.error_client = None
+            self.logging_client = None
+        else:
+            # Initialize clients
+            self.metrics_client = monitoring.MetricServiceClient()
+            self.error_client = error_reporting.Client()
+            self.logging_client = cloud_logging.Client()
         
         # Project configuration
         self.project_id = settings.GOOGLE_CLOUD_PROJECT
@@ -89,11 +103,20 @@ class MonitoringService:
         # Health check registry
         self._health_checks = {}
         
-        # Initialize custom metrics
-        asyncio.create_task(self._initialize_custom_metrics())
+        # Initialize custom metrics (will be done lazily when needed)
+        self._metrics_initialized = False
+    
+    async def _ensure_metrics_initialized(self):
+        """Ensure custom metrics are initialized."""
+        if self._metrics_initialized or not MONITORING_AVAILABLE:
+            return
+        await self._initialize_custom_metrics()
+        self._metrics_initialized = True
     
     async def _initialize_custom_metrics(self):
         """Initialize custom metric descriptors."""
+        if not MONITORING_AVAILABLE:
+            return
         try:
             # Define custom metrics
             custom_metrics = [
@@ -101,48 +124,48 @@ class MonitoringService:
                     "type": "custom.googleapis.com/ai_legal_companion/document_processing_duration",
                     "display_name": "Document Processing Duration",
                     "description": "Time taken to process documents",
-                    "metric_kind": monitoring_v3.MetricDescriptor.MetricKind.GAUGE,
-                    "value_type": monitoring_v3.MetricDescriptor.ValueType.DOUBLE,
+                    "metric_kind": monitoring.MetricDescriptor.MetricKind.GAUGE,
+                    "value_type": monitoring.MetricDescriptor.ValueType.DOUBLE,
                     "unit": "s"
                 },
                 {
                     "type": "custom.googleapis.com/ai_legal_companion/api_request_count",
                     "display_name": "API Request Count",
                     "description": "Number of API requests",
-                    "metric_kind": monitoring_v3.MetricDescriptor.MetricKind.CUMULATIVE,
-                    "value_type": monitoring_v3.MetricDescriptor.ValueType.INT64,
+                    "metric_kind": monitoring.MetricDescriptor.MetricKind.CUMULATIVE,
+                    "value_type": monitoring.MetricDescriptor.ValueType.INT64,
                     "unit": "1"
                 },
                 {
                     "type": "custom.googleapis.com/ai_legal_companion/error_rate",
                     "display_name": "Error Rate",
                     "description": "Rate of errors in the application",
-                    "metric_kind": monitoring_v3.MetricDescriptor.MetricKind.GAUGE,
-                    "value_type": monitoring_v3.MetricDescriptor.ValueType.DOUBLE,
+                    "metric_kind": monitoring.MetricDescriptor.MetricKind.GAUGE,
+                    "value_type": monitoring.MetricDescriptor.ValueType.DOUBLE,
                     "unit": "1"
                 },
                 {
                     "type": "custom.googleapis.com/ai_legal_companion/active_users",
                     "display_name": "Active Users",
                     "description": "Number of active users",
-                    "metric_kind": monitoring_v3.MetricDescriptor.MetricKind.GAUGE,
-                    "value_type": monitoring_v3.MetricDescriptor.ValueType.INT64,
+                    "metric_kind": monitoring.MetricDescriptor.MetricKind.GAUGE,
+                    "value_type": monitoring.MetricDescriptor.ValueType.INT64,
                     "unit": "1"
                 },
                 {
                     "type": "custom.googleapis.com/ai_legal_companion/storage_usage",
                     "display_name": "Storage Usage",
                     "description": "Storage usage in bytes",
-                    "metric_kind": monitoring_v3.MetricDescriptor.MetricKind.GAUGE,
-                    "value_type": monitoring_v3.MetricDescriptor.ValueType.INT64,
+                    "metric_kind": monitoring.MetricDescriptor.MetricKind.GAUGE,
+                    "value_type": monitoring.MetricDescriptor.ValueType.INT64,
                     "unit": "By"
                 },
                 {
                     "type": "custom.googleapis.com/ai_legal_companion/ai_model_latency",
                     "display_name": "AI Model Latency",
                     "description": "Latency of AI model calls",
-                    "metric_kind": monitoring_v3.MetricDescriptor.MetricKind.GAUGE,
-                    "value_type": monitoring_v3.MetricDescriptor.ValueType.DOUBLE,
+                    "metric_kind": monitoring.MetricDescriptor.MetricKind.GAUGE,
+                    "value_type": monitoring.MetricDescriptor.ValueType.DOUBLE,
                     "unit": "ms"
                 }
             ]
@@ -159,7 +182,7 @@ class MonitoringService:
     async def _create_metric_descriptor(self, config: Dict[str, Any]):
         """Create a custom metric descriptor."""
         try:
-            descriptor = monitoring_v3.MetricDescriptor(
+            descriptor = monitoring.MetricDescriptor(
                 type=config["type"],
                 display_name=config["display_name"],
                 description=config["description"],
@@ -302,12 +325,17 @@ class MonitoringService:
             labels: Optional labels for the metric
             timestamp: Optional timestamp (defaults to now)
         """
+        if not MONITORING_AVAILABLE:
+            logger.debug(f"Monitoring disabled - would record metric {metric_type}: {value}")
+            return
+        
+        await self._ensure_metrics_initialized()
         try:
             if timestamp is None:
                 timestamp = datetime.utcnow()
             
             # Create time series data
-            series = monitoring_v3.TimeSeries()
+            series = monitoring.TimeSeries()
             series.metric.type = metric_type
             
             # Add labels
@@ -321,7 +349,7 @@ class MonitoringService:
             series.resource.labels["zone"] = settings.VERTEX_AI_LOCATION
             
             # Create data point
-            point = monitoring_v3.Point()
+            point = monitoring.Point()
             point.value.double_value = float(value)
             point.interval.end_time.seconds = int(timestamp.timestamp())
             series.points = [point]
@@ -351,6 +379,9 @@ class MonitoringService:
             context: Additional context information
             user_id: Optional user ID associated with the error
         """
+        if not MONITORING_AVAILABLE:
+            logger.error(f"Monitoring disabled - would report error: {error}")
+            return
         try:
             # Build error context
             error_context = {
@@ -534,7 +565,7 @@ class MonitoringService:
             logger.info(f"Alert policy created: {json.dumps(alert_config, indent=2)}")
             
             # In a real implementation, you would use:
-            # alert_client = monitoring_v3.AlertPolicyServiceClient()
+            # alert_client = monitoring.AlertPolicyServiceClient()
             # policy = alert_client.create_alert_policy(...)
             
             return f"alert-policy-{name.lower().replace(' ', '-')}"

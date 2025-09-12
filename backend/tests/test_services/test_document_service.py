@@ -11,7 +11,7 @@ import tempfile
 import os
 
 from app.services.document_service import document_service
-from app.models.document import Document, DocumentStatus
+from app.models.document import Document, ProcessingStatus
 from app.core.exceptions import DocumentError, ValidationError
 
 
@@ -237,7 +237,7 @@ class TestDocumentService:
         """Test document status update."""
         # Setup
         document_id = "test-doc-123"
-        new_status = DocumentStatus.PROCESSING
+        new_status = ProcessingStatus.PROCESSING
         
         # Mock Firestore update
         mock_firestore.collection().document().update = AsyncMock()
