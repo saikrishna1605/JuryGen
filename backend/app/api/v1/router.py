@@ -111,10 +111,23 @@ except ImportError:
 
 # Include documents endpoints
 try:
-    from .endpoints import documents
+    from .endpoints import documents_simple as documents
     api_router.include_router(
         documents.router,
         tags=["documents"]
     )
-except ImportError:
+except ImportError as e:
+    print(f"Documents endpoints not available: {e}")
     pass  # Documents endpoints not available in minimal mode
+
+# Include public documents endpoints (no auth required)
+try:
+    from .endpoints import documents_public
+    api_router.include_router(
+        documents_public.router,
+        prefix="/public",
+        tags=["public-documents"]
+    )
+except ImportError as e:
+    print(f"Public documents endpoints not available: {e}")
+    pass

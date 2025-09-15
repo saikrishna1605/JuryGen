@@ -1,326 +1,397 @@
 """
-Agent-specific API endpoints for direct agent interactions.
-
-This module provides endpoints for:
-- Direct summarizer agent calls
-- Individual agent testing and debugging
-- Agent-specific configuration and status
+AI Agent API endpoints with Murf, AssemblyAI, and Gemini integration.
 """
 
-import logging
-from typing import Optional
-from uuid import UUID
+import uuid
+from typing import Optional, Dict, Any
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Query
+from pydantic import BaseModel, Field
 
-from ....core.security import require_auth
-from ....core.exceptions import AnalysisError
-from ....models.base import ApiResponse, UserRole, ReadingLevel
-from ....models.document import DocumentSummary
-from ....models.analysis import SummarizationRequest, SummarizationResponse
-from ....agents.summarizer_agent import SummarizerAgent
-from ....services.firestore import FirestoreService
+from ....core.security import optional_auth
+from ....services.agent_service import agent_service
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/agents", tags=["agents"])
-
-# Initialize services
-summarizer_agent = SummarizerAgent()
-firestore_service = FirestoreService()
+router = APIRouter()
 
 
-@router.post("/summarizer/summarize")
-async def summarize_document(
-    document_id: UUID,
-    user_role: Optional[UserRole] = None,
-    jurisdiction: Optional[str] = None,
-    reading_level: ReadingLevel = ReadingLevel.MIDDLE,
-    tone: str = "neutral",
-    clause_analysis: Optional[list] = None,
-    current_user: dict = Depends(require_auth)
-) -> ApiResponse:
+class VoiceQuestionRequest(BaseModel):
+    """Voice question request model."""
+    document_id: str = Field(..., description="Document ID to ask about")
+    session_id: str = Field(default="default", description="Session ID")
+
+
+class TextGenerationRequest(BaseModel):
+    """Text generation request model."""
+    prompt: str = Field(..., description="Text generation prompt")
+    context: str = Field(default="", description="Additional context")
+    max_tokens: int = Field(default=1000, description="Maximum tokens to generate")
+
+
+class TTSRequest(BaseModel):
+    """Text-to-speech request model."""
+    text: str = Field(..., description="Text to convert to speech")
+    voice_id: str = Field(default="en-US-davis", description="Voice ID")
+    speed: float = Field(default=1.0, description="Speech speed")
+
+
+class AgentResponse(BaseModel):
+    """Agent response model."""
+    success: bool = Field(..., description="Success status")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Response data")
+    error: Optional[str] = Field(default=None, description="Error message")
+    message: str = Field(..., description="Response message")
+
+
+@router.post("/agents/voice-question", response_model=AgentResponse)
+async def process_voice_question(
+    audio_file: UploadFile = File(..., description="Audio file with question"),
+    document_id: str = Form(..., description="Document ID"),
+    session_id: str = Form(default="default", description="Session ID"),
+    user: Optional[dict] = Depends(optional_auth)
+):
     """
-    Create a plain language summary of a legal document.
-    
-    This endpoint is primarily used by Cloud Workflows but can also be called
-    directly for testing or custom integrations.
-    
-    Args:
-        document_id: ID of the document to summarize
-        user_role: User's role for perspective
-        jurisdiction: Legal jurisdiction for context
-        reading_level: Target reading level for the summary
-        tone: Desired tone (neutral, friendly, formal)
-        clause_analysis: Pre-analyzed clauses (optional)
-        current_user: Authenticated user information
-        
-    Returns:
-        ApiResponse with DocumentSummary data
+    Process a voice question using the complete AI pipeline:
+    1. Transcribe audio (AssemblyAI)
+    2. Generate answer (Gemini)
+    3. Convert to speech (Murf)
     """
     try:
-        logger.info(f"Creating summary for document {document_id}")
+        # Read audio file
+        audio_data = await audio_file.read()
         
-        # Get document from Firestore
-        document = await firestore_service.get_document_raw(str(document_id))
-        if not document:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
+        # Get document content for context
+        document_content = await get_document_content(document_id)
+        
+        # Process through AI pipeline
+        result = await agent_service.process_voice_question(audio_data, document_content)
+        
+        if result["success"]:
+            # Save to conversation history
+            await save_conversation_history(
+                document_id=document_id,
+                session_id=session_id,
+                question=result["question"],
+                answer=result["answer"],
+                audio_url=result.get("audio_url"),
+                confidence=result.get("transcription_confidence", 0.9)
             )
-        
-        # Verify user owns the document
-        if document.get("user_id") != current_user["uid"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to document"
+            
+            return AgentResponse(
+                success=True,
+                data=result,
+                message="Voice question processed successfully"
             )
-        
-        # Get document text
-        structured_text = document.get("structured_text")
-        if not structured_text:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Document has not been processed for OCR yet"
+        else:
+            return AgentResponse(
+                success=False,
+                error=result["error"],
+                message=f"Voice processing failed at {result.get('step', 'unknown')} step"
             )
-        
-        # Get clauses if not provided
-        clauses = clause_analysis
-        if not clauses:
-            # Fetch clauses from Firestore
-            clauses_data = await firestore_service.get_document_clauses(str(document_id))
-            clauses = clauses_data or []
-        
-        # Create summary using the summarizer agent
-        summary = await summarizer_agent.create_summary(
-            document_text=structured_text,
-            clauses=clauses,
-            user_role=user_role,
-            reading_level=reading_level,
-            tone=tone,
-            jurisdiction=jurisdiction
-        )
-        
-        # Store summary in Firestore
-        await firestore_service.update_document_fields(
-            str(document_id),
-            {"summary": summary.model_dump()}
-        )
-        
-        logger.info(f"Summary created successfully for document {document_id}")
-        
-        return ApiResponse(
-            success=True,
-            data=summary.model_dump(),
-            message="Summary created successfully"
-        )
-        
-    except HTTPException:
-        raise
-    except AnalysisError as e:
-        logger.error(f"Analysis error during summarization: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Summarization failed: {str(e)}"
-        )
+            
     except Exception as e:
-        logger.error(f"Unexpected error during summarization: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error during summarization"
+            status_code=500,
+            detail=f"Voice question processing failed: {str(e)}"
         )
 
 
-@router.post("/summarizer/adjust-tone")
-async def adjust_summary_tone(
-    document_id: UUID,
-    new_tone: str,
-    new_reading_level: Optional[ReadingLevel] = None,
-    current_user: dict = Depends(require_auth)
-) -> ApiResponse:
+@router.post("/agents/transcribe", response_model=AgentResponse)
+async def transcribe_audio(
+    audio_file: UploadFile = File(..., description="Audio file to transcribe"),
+    user: Optional[dict] = Depends(optional_auth)
+):
     """
-    Adjust the tone and/or reading level of an existing summary.
-    
-    Args:
-        document_id: ID of the document with existing summary
-        new_tone: New tone to apply (neutral, friendly, formal, etc.)
-        new_reading_level: New reading level (optional)
-        current_user: Authenticated user information
-        
-    Returns:
-        ApiResponse with adjusted DocumentSummary
+    Transcribe audio using AssemblyAI.
     """
     try:
-        logger.info(f"Adjusting summary tone for document {document_id}")
+        # Read audio file
+        audio_data = await audio_file.read()
         
-        # Get document from Firestore
-        document = await firestore_service.get_document_raw(str(document_id))
-        if not document:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
+        # Get file format from filename
+        audio_format = audio_file.filename.split('.')[-1].lower() if audio_file.filename else "wav"
+        
+        # Transcribe
+        result = await agent_service.transcribe_audio(audio_data, audio_format)
+        
+        if result["success"]:
+            return AgentResponse(
+                success=True,
+                data={
+                    "text": result["text"],
+                    "confidence": result.get("confidence", 0.9),
+                    "language": result.get("language", "en"),
+                    "duration": result.get("duration", 0)
+                },
+                message="Audio transcribed successfully"
             )
-        
-        # Verify user owns the document
-        if document.get("user_id") != current_user["uid"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to document"
+        else:
+            return AgentResponse(
+                success=False,
+                error=result["error"],
+                message="Transcription failed"
             )
-        
-        # Get existing summary
-        summary_data = document.get("summary")
-        if not summary_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Document does not have an existing summary"
-            )
-        
-        # Convert to DocumentSummary object
-        original_summary = DocumentSummary(**summary_data)
-        
-        # Adjust the summary
-        adjusted_summary = await summarizer_agent.adjust_summary_tone(
-            original_summary=original_summary,
-            new_tone=new_tone,
-            new_reading_level=new_reading_level
-        )
-        
-        # Update summary in Firestore
-        await firestore_service.update_document_fields(
-            str(document_id),
-            {"summary": adjusted_summary.model_dump()}
-        )
-        
-        logger.info(f"Summary tone adjusted successfully for document {document_id}")
-        
-        return ApiResponse(
-            success=True,
-            data=adjusted_summary.model_dump(),
-            message="Summary tone adjusted successfully"
-        )
-        
-    except HTTPException:
-        raise
+            
     except Exception as e:
-        logger.error(f"Error adjusting summary tone: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error during tone adjustment"
+            status_code=500,
+            detail=f"Transcription failed: {str(e)}"
         )
 
 
-@router.post("/summarizer/custom-summary")
-async def create_custom_summary(
-    request: SummarizationRequest,
-    current_user: dict = Depends(require_auth)
-) -> SummarizationResponse:
+@router.post("/agents/generate-text", response_model=AgentResponse)
+async def generate_text(
+    request: TextGenerationRequest,
+    user: Optional[dict] = Depends(optional_auth)
+):
     """
-    Create a custom summary from provided text.
-    
-    This endpoint allows for direct text summarization without requiring
-    a stored document. Useful for testing or custom integrations.
-    
-    Args:
-        request: Summarization request with text and options
-        current_user: Authenticated user information
-        
-    Returns:
-        SummarizationResponse with summary results
+    Generate text using Gemini AI.
     """
     try:
-        logger.info("Creating custom summary from provided text")
+        result = await agent_service.generate_text(
+            prompt=request.prompt,
+            context=request.context,
+            max_tokens=request.max_tokens
+        )
         
-        # Validate request
-        if len(request.text.strip()) < 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Text too short for meaningful summarization"
+        if result["success"]:
+            return AgentResponse(
+                success=True,
+                data={
+                    "text": result["text"],
+                    "model": result.get("model", "gemini"),
+                    "tokens_used": result.get("tokens_used", 0)
+                },
+                message="Text generated successfully"
             )
-        
-        # Create a basic summary using the summarizer agent
-        # Note: This bypasses clause analysis since we don't have structured clauses
-        summary = await summarizer_agent.create_summary(
-            document_text=request.text,
-            clauses=[],  # Empty clauses list for custom text
-            reading_level=ReadingLevel(request.reading_level),
-            tone="neutral"
-        )
-        
-        # Calculate compression ratio
-        original_words = len(request.text.split())
-        summary_words = len(summary.plain_language.split())
-        compression_ratio = original_words / summary_words if summary_words > 0 else 1.0
-        
-        # Extract main topics (simplified)
-        topics = []
-        if summary.document_type:
-            topics.append(summary.document_type)
-        
-        response = SummarizationResponse(
-            summary=summary.plain_language,
-            key_points=summary.key_points,
-            word_count=summary.word_count,
-            reading_level=request.reading_level,
-            compression_ratio=compression_ratio,
-            topics=topics,
-            confidence=0.85  # Default confidence for custom summaries
-        )
-        
-        logger.info("Custom summary created successfully")
-        return response
-        
-    except HTTPException:
-        raise
+        else:
+            return AgentResponse(
+                success=False,
+                error=result["error"],
+                message="Text generation failed"
+            )
+            
     except Exception as e:
-        logger.error(f"Error creating custom summary: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error during custom summarization"
+            status_code=500,
+            detail=f"Text generation failed: {str(e)}"
         )
 
 
-@router.get("/summarizer/status")
-async def get_summarizer_status(
-    current_user: dict = Depends(require_auth)
-) -> ApiResponse:
+@router.post("/agents/text-to-speech", response_model=AgentResponse)
+async def text_to_speech(
+    request: TTSRequest,
+    user: Optional[dict] = Depends(optional_auth)
+):
     """
-    Get the status and capabilities of the summarizer agent.
-    
-    Returns:
-        ApiResponse with summarizer status information
+    Convert text to speech using Murf AI.
     """
     try:
-        # Get basic status information
-        status_info = {
-            "agent_name": "Summarizer Agent",
-            "version": "1.0.0",
-            "status": "ready",
-            "capabilities": [
-                "plain_language_conversion",
-                "reading_level_control", 
-                "key_points_extraction",
-                "tone_adjustment",
-                "document_type_classification"
-            ],
-            "supported_reading_levels": [level.value for level in ReadingLevel],
-            "supported_tones": ["neutral", "friendly", "formal", "collaborative", "strict"],
-            "model_info": {
-                "primary_model": "gemini-1.5-pro",
-                "backup_model": "gemini-1.5-flash"
+        result = await agent_service.text_to_speech(
+            text=request.text,
+            voice_id=request.voice_id,
+            speed=request.speed
+        )
+        
+        if result["success"]:
+            return AgentResponse(
+                success=True,
+                data={
+                    "audio_url": result["audio_url"],
+                    "audio_data": result.get("audio_data"),
+                    "duration": result.get("duration", 0),
+                    "voice_id": result["voice_id"],
+                    "format": result.get("format", "mp3")
+                },
+                message="Text converted to speech successfully"
+            )
+        else:
+            return AgentResponse(
+                success=False,
+                error=result["error"],
+                message="Text-to-speech conversion failed"
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Text-to-speech failed: {str(e)}"
+        )
+
+
+@router.get("/agents/voices", response_model=AgentResponse)
+async def get_available_voices(
+    user: Optional[dict] = Depends(optional_auth)
+):
+    """
+    Get available Murf AI voices.
+    """
+    try:
+        result = await agent_service.get_available_voices()
+        
+        if result["success"]:
+            return AgentResponse(
+                success=True,
+                data={"voices": result["voices"]},
+                message="Voices retrieved successfully"
+            )
+        else:
+            return AgentResponse(
+                success=False,
+                error=result["error"],
+                message="Failed to retrieve voices"
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get voices: {str(e)}"
+        )
+
+
+@router.post("/agents/chat", response_model=AgentResponse)
+async def chat_with_document(
+    document_id: str = Form(...),
+    question: str = Form(...),
+    session_id: str = Form(default="default"),
+    user: Optional[dict] = Depends(optional_auth)
+):
+    """
+    Chat with a document using Gemini AI.
+    """
+    try:
+        # Get document content
+        document_content = await get_document_content(document_id)
+        
+        # Generate response
+        result = await agent_service.generate_text(
+            prompt=question,
+            context=document_content
+        )
+        
+        if result["success"]:
+            # Save to conversation history
+            await save_conversation_history(
+                document_id=document_id,
+                session_id=session_id,
+                question=question,
+                answer=result["text"],
+                confidence=0.95
+            )
+            
+            return AgentResponse(
+                success=True,
+                data={
+                    "question": question,
+                    "answer": result["text"],
+                    "model": result.get("model", "gemini"),
+                    "session_id": session_id
+                },
+                message="Chat response generated successfully"
+            )
+        else:
+            return AgentResponse(
+                success=False,
+                error=result["error"],
+                message="Chat response generation failed"
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Chat failed: {str(e)}"
+        )
+
+
+@router.get("/agents/status")
+async def get_agent_status():
+    """
+    Get the status of all AI services.
+    """
+    return {
+        "success": True,
+        "data": {
+            "services": {
+                "murf_tts": bool(agent_service.murf_api_key),
+                "assemblyai_transcription": bool(agent_service.assemblyai_api_key),
+                "gemini_generation": agent_service.gemini_enabled
+            },
+            "capabilities": {
+                "voice_questions": bool(agent_service.murf_api_key and agent_service.assemblyai_api_key and agent_service.gemini_enabled),
+                "transcription": bool(agent_service.assemblyai_api_key),
+                "text_generation": agent_service.gemini_enabled,
+                "text_to_speech": bool(agent_service.murf_api_key)
             }
+        },
+        "message": "Agent status retrieved successfully"
+    }
+
+
+# Helper functions
+async def get_document_content(document_id: str) -> str:
+    """Get document content for AI processing."""
+    import json
+    from pathlib import Path
+    
+    uploads_dir = Path("uploads")
+    metadata_file = uploads_dir / "documents.json"
+    
+    if metadata_file.exists():
+        try:
+            with open(metadata_file, 'r') as f:
+                documents = json.load(f)
+            
+            for doc in documents:
+                if doc["id"] == document_id:
+                    return doc.get("extracted_text", "Document content not available for analysis.")
+        except Exception as e:
+            print(f"Error loading document content: {e}")
+    
+    return "Document content not available for analysis."
+
+
+async def save_conversation_history(
+    document_id: str,
+    session_id: str,
+    question: str,
+    answer: str,
+    audio_url: Optional[str] = None,
+    confidence: float = 0.9
+):
+    """Save conversation to history."""
+    import json
+    from pathlib import Path
+    
+    try:
+        qa_dir = Path("uploads/qa")
+        qa_dir.mkdir(exist_ok=True)
+        
+        history_file = qa_dir / f"{document_id}_{session_id}.json"
+        history = []
+        
+        if history_file.exists():
+            try:
+                with open(history_file, 'r') as f:
+                    history = json.load(f)
+            except:
+                history = []
+        
+        # Add new conversation
+        conversation = {
+            "id": str(uuid.uuid4()),
+            "question": question,
+            "answer": answer,
+            "confidence": confidence,
+            "timestamp": datetime.utcnow().isoformat(),
+            "audio_url": audio_url,
+            "type": "voice" if audio_url else "text"
         }
         
-        return ApiResponse(
-            success=True,
-            data=status_info,
-            message="Summarizer agent status retrieved successfully"
-        )
+        history.append(conversation)
         
+        # Save updated history
+        with open(history_file, 'w') as f:
+            json.dump(history, f, indent=2)
+            
     except Exception as e:
-        logger.error(f"Error getting summarizer status: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error retrieving status"
-        )
+        print(f"Error saving conversation history: {e}")

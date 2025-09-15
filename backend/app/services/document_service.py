@@ -1,537 +1,261 @@
 """
-Document Service for handling document upload, storage, and retrieval.
-
-This service handles:
-- Document upload and validation
-- Cloud Storage integration
-- Document metadata management
-- File type validation and processing
+Document service for handling document operations and database interactions.
 """
 
-import asyncio
-import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+import os
 import uuid
-import hashlib
-import mimetypes
-from pathlib import Path
-import io
+from typing import List, Optional, Dict, Any, Tuple
+from datetime import datetime
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc
 
-# Optional Google Cloud imports
-try:
-    from google.cloud import storage
-    from google.api_core import exceptions as gcp_exceptions
-    GOOGLE_CLOUD_AVAILABLE = True
-except ImportError:
-    storage = None
-    gcp_exceptions = None
-    GOOGLE_CLOUD_AVAILABLE = False
+from ..models.document import Document, ProcessedDocument, DocumentMetadata, OCRResult
+from ..core.database import Base, engine
+from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, Float, Boolean
 
-from ..core.config import get_settings
-from ..core.exceptions import DocumentError, ValidationError, StorageError
-from ..models.document import Document
-from ..models.base import ProcessingStatus
-from ..services.firestore import FirestoreService
 
-logger = logging.getLogger(__name__)
-settings = get_settings()
+class DocumentModel(Base):
+    """SQLAlchemy model for documents table."""
+    __tablename__ = "documents"
+    
+    id = Column(String, primary_key=True)
+    filename = Column(String, nullable=False)
+    content_type = Column(String, nullable=False)
+    size_bytes = Column(Integer, default=0)
+    processing_status = Column(String, default="pending_upload")
+    user_id = Column(String, nullable=False, index=True)
+    jurisdiction = Column(String, nullable=True)
+    user_role = Column(String, nullable=True)
+    storage_url = Column(String, nullable=True)
+    structured_text = Column(Text, nullable=True)
+    metadata = Column(JSON, nullable=True)
+    processing_time = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OCRResultModel(Base):
+    """SQLAlchemy model for OCR results table."""
+    __tablename__ = "ocr_results"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    document_id = Column(String, nullable=False, index=True)
+    text = Column(Text, nullable=False)
+    confidence = Column(Float, nullable=False)
+    layout = Column(JSON, nullable=True)
+    processing_method = Column(String, nullable=False)
+    language_code = Column(String, default="en")
+    processing_time = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DocumentService:
-    """
-    Service for managing document upload, storage, and retrieval.
-    
-    Handles file validation, cloud storage, and document metadata management.
-    """
+    """Service class for document operations."""
     
     def __init__(self):
-        """Initialize the document service."""
-        if not GOOGLE_CLOUD_AVAILABLE:
-            logger.warning("Google Cloud libraries not available - document service functionality limited")
-            self.storage_client = None
-        else:
-            try:
-                self.storage_client = storage.Client()
-            except Exception as e:
-                logger.warning(f"Failed to initialize Storage client: {e}")
-                self.storage_client = None
+        # Create tables if they don't exist
+        Base.metadata.create_all(bind=engine)
+    
+    async def create_document(self, db: Session, document_data: Dict[str, Any]) -> DocumentModel:
+        """Create a new document record."""
+        document = DocumentModel(**document_data)
+        db.add(document)
+        db.commit()
+        db.refresh(document)
+        return document
+    
+    async def get_document(self, db: Session, document_id: str, user_id: str) -> Optional[DocumentModel]:
+        """Get a document by ID and user ID."""
+        return db.query(DocumentModel).filter(
+            and_(
+                DocumentModel.id == document_id,
+                DocumentModel.user_id == user_id
+            )
+        ).first()
+    
+    async def update_document(self, db: Session, document_id: str, update_data: Dict[str, Any]) -> bool:
+        """Update a document record."""
+        result = db.query(DocumentModel).filter(
+            DocumentModel.id == document_id
+        ).update(update_data)
+        db.commit()
+        return result > 0
+    
+    async def delete_document(self, db: Session, document_id: str) -> bool:
+        """Delete a document and its related records."""
+        # Delete OCR results first
+        db.query(OCRResultModel).filter(
+            OCRResultModel.document_id == document_id
+        ).delete()
         
-        try:
-            self.firestore_service = FirestoreService()
-        except Exception as e:
-            logger.warning(f"Failed to initialize Firestore service: {e}")
-            self.firestore_service = None
+        # Delete document
+        result = db.query(DocumentModel).filter(
+            DocumentModel.id == document_id
+        ).delete()
         
-        # Configuration
-        self.bucket_name = settings.STORAGE_BUCKET
-        self.max_file_size = 50 * 1024 * 1024  # 50MB
+        db.commit()
+        return result > 0
+    
+    async def get_user_documents(
+        self,
+        db: Session,
+        user_id: str,
+        page: int = 1,
+        per_page: int = 10,
+        status_filter: Optional[str] = None
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Get paginated list of user documents."""
+        query = db.query(DocumentModel).filter(DocumentModel.user_id == user_id)
         
-        # Supported file types
-        self.supported_types = {
-            "application/pdf": [".pdf"],
-            "image/jpeg": [".jpg", ".jpeg"],
-            "image/png": [".png"],
-            "image/gif": [".gif"],
-            "image/bmp": [".bmp"],
-            "image/tiff": [".tiff", ".tif"],
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-            "application/msword": [".doc"]
+        if status_filter:
+            query = query.filter(DocumentModel.processing_status == status_filter)
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        documents = query.order_by(desc(DocumentModel.created_at)).offset(
+            (page - 1) * per_page
+        ).limit(per_page).all()
+        
+        # Convert to dict format
+        document_list = []
+        for doc in documents:
+            document_list.append({
+                "id": doc.id,
+                "filename": doc.filename,
+                "content_type": doc.content_type,
+                "size_bytes": doc.size_bytes,
+                "processing_status": doc.processing_status,
+                "user_id": doc.user_id,
+                "jurisdiction": doc.jurisdiction,
+                "user_role": doc.user_role,
+                "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+                "processing_time": doc.processing_time,
+                "error_message": doc.error_message
+            })
+        
+        return document_list, total
+    
+    async def get_processed_document(
+        self,
+        db: Session,
+        document_id: str,
+        user_id: str,
+        include_analysis: bool = True
+    ) -> Optional[Dict[str, Any]]:
+        """Get a processed document with analysis results."""
+        document = await self.get_document(db, document_id, user_id)
+        if not document:
+            return None
+        
+        result = {
+            "id": document.id,
+            "filename": document.filename,
+            "content_type": document.content_type,
+            "size_bytes": document.size_bytes,
+            "processing_status": document.processing_status,
+            "user_id": document.user_id,
+            "jurisdiction": document.jurisdiction,
+            "user_role": document.user_role,
+            "storage_url": document.storage_url,
+            "structured_text": document.structured_text,
+            "metadata": document.metadata,
+            "processing_time": document.processing_time,
+            "created_at": document.created_at.isoformat() if document.created_at else None,
+            "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+            "error_message": document.error_message
         }
+        
+        if include_analysis:
+            # Get OCR results
+            ocr_result = db.query(OCRResultModel).filter(
+                OCRResultModel.document_id == document_id
+            ).first()
+            
+            if ocr_result:
+                result["ocr_result"] = {
+                    "text": ocr_result.text,
+                    "confidence": ocr_result.confidence,
+                    "layout": ocr_result.layout,
+                    "processing_method": ocr_result.processing_method,
+                    "language_code": ocr_result.language_code,
+                    "processing_time": ocr_result.processing_time
+                }
+            
+            # TODO: Add clauses, risk assessment, etc.
+            result["clauses"] = []
+            result["risk_assessment"] = None
+            result["summary"] = None
+        
+        return result
     
-    async def upload_document(
-        self,
-        file_content: bytes,
-        filename: str,
-        content_type: str,
-        user_id: str,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        Upload a document to cloud storage and save metadata.
+    async def store_ocr_result(self, db: Session, document_id: str, ocr_result: OCRResult) -> bool:
+        """Store OCR processing result."""
+        ocr_model = OCRResultModel(
+            document_id=document_id,
+            text=ocr_result.text,
+            confidence=ocr_result.confidence,
+            layout=ocr_result.layout.dict() if ocr_result.layout else None,
+            processing_method=ocr_result.processing_method,
+            language_code=ocr_result.language_code,
+            processing_time=ocr_result.processing_time
+        )
         
-        Args:
-            file_content: Raw file bytes
-            filename: Original filename
-            content_type: MIME type of the file
-            user_id: User uploading the document
-            metadata: Additional metadata
-            
-        Returns:
-            Dictionary with upload result and document information
-        """
-        try:
-            # Validate file
-            self._validate_file(file_content, filename, content_type)
-            
-            # Generate document ID and storage path
-            document_id = str(uuid.uuid4())
-            file_extension = Path(filename).suffix.lower()
-            storage_path = f"documents/{user_id}/{document_id}{file_extension}"
-            
-            # Upload to cloud storage
-            storage_url = None
-            if self.storage_client:
-                try:
-                    bucket = self.storage_client.bucket(self.bucket_name)
-                    blob = bucket.blob(storage_path)
-                    
-                    # Upload file
-                    blob.upload_from_string(
-                        file_content,
-                        content_type=content_type
-                    )
-                    
-                    # Generate signed URL for access
-                    storage_url = blob.generate_signed_url(
-                        expiration=datetime.utcnow() + timedelta(hours=24),
-                        method="GET"
-                    )
-                    
-                    logger.info(f"Uploaded document to storage: {storage_path}")
-                    
-                except Exception as e:
-                    logger.error(f"Storage upload failed: {e}")
-                    raise StorageError(f"Failed to upload to storage: {e}")
-            
-            # Extract document metadata
-            doc_metadata = self._extract_document_metadata(file_content, filename, content_type)
-            
-            # Create document record
-            document_data = {
-                "id": document_id,
-                "user_id": user_id,
-                "filename": filename,
-                "content_type": content_type,
-                "size_bytes": len(file_content),
-                "storage_path": storage_path,
-                "storage_url": storage_url,
-                "status": ProcessingStatus.QUEUED.value,
-                "metadata": {**doc_metadata, **(metadata or {})},
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-                "hash": hashlib.sha256(file_content).hexdigest()
-            }
-            
-            # Save to Firestore
-            if self.firestore_service:
-                await self.firestore_service.create_document(
-                    collection="documents",
-                    document_id=document_id,
-                    data=document_data
-                )
-            
-            return {
-                "status": "success",
-                "document_id": document_id,
-                "filename": filename,
-                "size_bytes": len(file_content),
-                "storage_url": storage_url,
-                "metadata": doc_metadata
-            }
-            
-        except (ValidationError, StorageError):
-            raise
-        except Exception as e:
-            logger.error(f"Document upload failed: {e}")
-            raise DocumentError(f"Failed to upload document: {e}")
-    
-    async def get_document(self, document_id: str, user_id: str) -> Dict[str, Any]:
-        """
-        Retrieve document metadata and information.
-        
-        Args:
-            document_id: Document identifier
-            user_id: User requesting the document
-            
-        Returns:
-            Document information
-        """
-        if not self.firestore_service:
-            raise DocumentError("Firestore service not available")
-            
-        try:
-            # Get document from Firestore
-            document = await self.firestore_service.get_document(
-                collection="documents",
-                document_id=document_id
-            )
-            
-            if not document:
-                raise DocumentError("Document not found")
-            
-            # Check user access
-            if document.get("user_id") != user_id:
-                raise DocumentError("Access denied - document belongs to different user")
-            
-            return document
-            
-        except DocumentError:
-            raise
-        except Exception as e:
-            logger.error(f"Error retrieving document: {e}")
-            raise DocumentError(f"Failed to retrieve document: {e}")
-    
-    async def list_user_documents(
-        self,
-        user_id: str,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[Dict[str, Any]]:
-        """
-        List documents for a specific user.
-        
-        Args:
-            user_id: User identifier
-            limit: Maximum number of documents to return
-            offset: Number of documents to skip
-            
-        Returns:
-            List of document information
-        """
-        if not self.firestore_service:
-            raise DocumentError("Firestore service not available")
-            
-        try:
-            documents = await self.firestore_service.query_documents(
-                collection="documents",
-                filters=[("user_id", "==", user_id)],
-                order_by=[("created_at", "desc")],
-                limit=limit,
-                offset=offset
-            )
-            
-            return documents
-            
-        except Exception as e:
-            logger.error(f"Error listing user documents: {e}")
-            raise DocumentError(f"Failed to list documents: {e}")
-    
-    async def delete_document(self, document_id: str, user_id: str) -> Dict[str, Any]:
-        """
-        Delete a document and its associated files.
-        
-        Args:
-            document_id: Document identifier
-            user_id: User requesting deletion
-            
-        Returns:
-            Deletion result
-        """
-        try:
-            # Get document first to verify ownership
-            document = await self.get_document(document_id, user_id)
-            
-            # Delete from cloud storage
-            if self.storage_client and document.get("storage_path"):
-                try:
-                    bucket = self.storage_client.bucket(self.bucket_name)
-                    blob = bucket.blob(document["storage_path"])
-                    if blob.exists():
-                        blob.delete()
-                        logger.info(f"Deleted document from storage: {document['storage_path']}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete from storage: {e}")
-            
-            # Delete from Firestore
-            if self.firestore_service:
-                await self.firestore_service.delete_document(
-                    collection="documents",
-                    document_id=document_id
-                )
-            
-            return {"status": "success", "document_id": document_id}
-            
-        except DocumentError:
-            raise
-        except Exception as e:
-            logger.error(f"Error deleting document: {e}")
-            raise DocumentError(f"Failed to delete document: {e}")
-    
-    async def update_document_status(
-        self,
-        document_id: str,
-        status: ProcessingStatus,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """
-        Update document processing status.
-        
-        Args:
-            document_id: Document identifier
-            status: New status
-            metadata: Additional metadata to update
-        """
-        if not self.firestore_service:
-            raise DocumentError("Firestore service not available")
-            
-        try:
-            update_data = {
-                "status": status.value,
-                "updated_at": datetime.utcnow()
-            }
-            
-            if metadata:
-                update_data["metadata"] = metadata
-            
-            await self.firestore_service.update_document(
-                collection="documents",
-                document_id=document_id,
-                data=update_data
-            )
-            
-        except Exception as e:
-            logger.error(f"Error updating document status: {e}")
-            raise DocumentError(f"Failed to update document status: {e}")
-    
-    async def get_signed_download_url(
-        self,
-        document_id: str,
-        user_id: str,
-        expiration_hours: int = 1
-    ) -> str:
-        """
-        Generate a signed URL for document download.
-        
-        Args:
-            document_id: Document identifier
-            user_id: User requesting the URL
-            expiration_hours: URL expiration time in hours
-            
-        Returns:
-            Signed download URL
-        """
-        if not self.storage_client:
-            raise DocumentError("Cloud Storage not available")
-            
-        try:
-            # Get document to verify ownership and get storage path
-            document = await self.get_document(document_id, user_id)
-            
-            if not document.get("storage_path"):
-                raise DocumentError("Document not found in storage")
-            
-            # Generate signed URL
-            bucket = self.storage_client.bucket(self.bucket_name)
-            blob = bucket.blob(document["storage_path"])
-            
-            signed_url = blob.generate_signed_url(
-                expiration=datetime.utcnow() + timedelta(hours=expiration_hours),
-                method="GET"
-            )
-            
-            return signed_url
-            
-        except DocumentError:
-            raise
-        except Exception as e:
-            logger.error(f"Error generating signed URL: {e}")
-            raise DocumentError(f"Failed to generate download URL: {e}")
-    
-    def _validate_file(self, file_content: bytes, filename: str, content_type: str) -> None:
-        """
-        Validate uploaded file.
-        
-        Args:
-            file_content: File content bytes
-            filename: Original filename
-            content_type: MIME type
-            
-        Raises:
-            ValidationError: If file is invalid
-        """
-        # Check file size
-        if len(file_content) > self.max_file_size:
-            raise ValidationError(f"File too large. Maximum size is {self.max_file_size // (1024*1024)}MB")
-        
-        # Check file type
-        if content_type not in self.supported_types:
-            raise ValidationError(f"Unsupported file type: {content_type}")
-        
-        # Check file extension
-        file_extension = Path(filename).suffix.lower()
-        if file_extension not in self.supported_types[content_type]:
-            raise ValidationError(f"File extension {file_extension} doesn't match content type {content_type}")
-        
-        # Validate file content
-        self._validate_document_content(file_content, filename, content_type)
-    
-    def _validate_document_content(self, file_content: bytes, filename: str, content_type: str) -> bool:
-        """
-        Validate document content matches declared type.
-        
-        Args:
-            file_content: File content bytes
-            filename: Original filename
-            content_type: Declared MIME type
-            
-        Returns:
-            True if valid
-            
-        Raises:
-            ValidationError: If content is invalid
-        """
-        if content_type == "application/pdf":
-            # Check PDF header
-            if not file_content.startswith(b'%PDF-'):
-                raise ValidationError("Invalid PDF file - missing PDF header")
-        
-        elif content_type.startswith("image/"):
-            # Basic image validation
-            try:
-                from PIL import Image
-                image = Image.open(io.BytesIO(file_content))
-                image.verify()
-            except ImportError:
-                logger.warning("PIL not available - skipping image validation")
-            except Exception:
-                raise ValidationError(f"Invalid image file: {filename}")
-        
-        elif content_type in [
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword"
-        ]:
-            # Basic DOCX/DOC validation
-            if content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                # DOCX files are ZIP archives
-                if not file_content.startswith(b'PK'):
-                    raise ValidationError("Invalid DOCX file - not a valid ZIP archive")
-        
+        db.add(ocr_model)
+        db.commit()
         return True
     
-    def _extract_document_metadata(
-        self,
-        file_content: bytes,
-        filename: str,
-        content_type: str
-    ) -> Dict[str, Any]:
-        """
-        Extract metadata from document content.
+    async def get_processing_progress(self, db: Session, document_id: str) -> Optional[Dict[str, Any]]:
+        """Get processing progress for a document."""
+        document = db.query(DocumentModel).filter(
+            DocumentModel.id == document_id
+        ).first()
         
-        Args:
-            file_content: File content bytes
-            filename: Original filename
-            content_type: MIME type
-            
-        Returns:
-            Dictionary with extracted metadata
-        """
-        metadata = {
-            "size": len(file_content),
-            "creation_date": datetime.utcnow().isoformat(),
-            "file_extension": Path(filename).suffix.lower()
+        if not document:
+            return None
+        
+        # Calculate progress based on status
+        progress_map = {
+            "pending_upload": 0,
+            "queued": 10,
+            "processing": 50,
+            "completed": 100,
+            "failed": 0
         }
         
+        return {
+            "percentage": progress_map.get(document.processing_status, 0),
+            "status": document.processing_status,
+            "error_message": document.error_message,
+            "processing_time": document.processing_time
+        }
+    
+    async def extract_metadata(self, file_content: bytes, content_type: str) -> Optional[DocumentMetadata]:
+        """Extract metadata from document file."""
         try:
+            metadata = DocumentMetadata()
+            
             if content_type == "application/pdf":
-                # Extract PDF metadata
-                try:
-                    import PyPDF2
-                    pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
-                except ImportError:
-                    logger.warning("PyPDF2 not available - skipping PDF metadata extraction")
-                    return metadata
-                metadata["page_count"] = len(pdf_reader.pages)
+                # Use PyPDF2 or similar to extract PDF metadata
+                metadata.page_count = 1  # Placeholder
+                metadata.word_count = len(file_content.decode('utf-8', errors='ignore').split())
                 
-                # Try to get PDF info
-                if pdf_reader.metadata:
-                    pdf_info = pdf_reader.metadata
-                    if pdf_info.get("/Title"):
-                        metadata["title"] = str(pdf_info["/Title"])
-                    if pdf_info.get("/Author"):
-                        metadata["author"] = str(pdf_info["/Author"])
-                    if pdf_info.get("/CreationDate"):
-                        metadata["pdf_creation_date"] = str(pdf_info["/CreationDate"])
-            
+            elif content_type.startswith("application/vnd.openxmlformats"):
+                # Use python-docx to extract DOCX metadata
+                metadata.word_count = len(file_content.decode('utf-8', errors='ignore').split())
+                
             elif content_type.startswith("image/"):
-                # Extract image metadata
-                try:
-                    from PIL import Image
-                    from PIL.ExifTags import TAGS
-                    
-                    image = Image.open(io.BytesIO(file_content))
-                    metadata["image_width"] = image.width
-                    metadata["image_height"] = image.height
-                    metadata["image_mode"] = image.mode
-                    
-                    # Extract EXIF data if available
-                    if hasattr(image, '_getexif') and image._getexif():
-                        exif_data = {}
-                        for tag_id, value in image._getexif().items():
-                            tag = TAGS.get(tag_id, tag_id)
-                            exif_data[tag] = str(value)
-                        metadata["exif"] = exif_data
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to extract image metadata: {e}")
+                # Image metadata extraction
+                metadata.page_count = 1
+                
+            metadata.character_count = len(file_content)
+            metadata.creation_date = datetime.utcnow()
             
-            elif content_type in [
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            ]:
-                # Extract DOCX metadata
-                try:
-                    from docx import Document as DocxDocument
-                    doc = DocxDocument(io.BytesIO(file_content))
-                    
-                    metadata["paragraph_count"] = len(doc.paragraphs)
-                    metadata["table_count"] = len(doc.tables)
-                    
-                    # Core properties
-                    if doc.core_properties.title:
-                        metadata["title"] = doc.core_properties.title
-                    if doc.core_properties.author:
-                        metadata["author"] = doc.core_properties.author
-                    if doc.core_properties.created:
-                        metadata["docx_creation_date"] = doc.core_properties.created.isoformat()
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to extract DOCX metadata: {e}")
-        
+            return metadata
+            
         except Exception as e:
-            logger.warning(f"Failed to extract document metadata: {e}")
-        
-        return metadata
-
-
-# Singleton instance
-document_service = DocumentService()
+            print(f"Failed to extract metadata: {str(e)}")
+            return None

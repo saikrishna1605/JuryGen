@@ -1,286 +1,193 @@
 """
-Document upload endpoints.
+File Upload API endpoints with real Google Cloud Storage integration.
 """
 
+import os
 import uuid
-from datetime import datetime, timedelta
 from typing import Optional
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from google.cloud import storage
-from google.cloud.exceptions import GoogleCloudError
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+from pydantic import BaseModel, Field
 
-from app.core.config import settings
-from app.core.security import require_auth
-from app.models.job import UploadRequest, UploadResponse, Job, JobOptions
-from app.models.document import Document
-from app.models.user import User
-from app.models.base import ProcessingStatus, ProcessingStage
-from app.services.storage import StorageService
-from app.services.firestore import FirestoreService
-import structlog
-
-logger = structlog.get_logger()
+from ....core.security import optional_auth
+from ....services.storage_service import StorageService
+from ....services.ocr_service import OCRService
 
 router = APIRouter()
 
 # Initialize services
 storage_service = StorageService()
-firestore_service = FirestoreService()
+ocr_service = OCRService()
+
+
+class UploadResponse(BaseModel):
+    """Response model for file upload."""
+    success: bool = Field(..., description="Upload success status")
+    document_id: str = Field(..., description="Unique document identifier")
+    filename: str = Field(..., description="Original filename")
+    file_size: int = Field(..., description="File size in bytes")
+    content_type: str = Field(..., description="MIME type")
+    storage_url: str = Field(..., description="Storage URL")
+    message: str = Field(..., description="Response message")
+
+
+class SignedUploadResponse(BaseModel):
+    """Response model for signed upload URL."""
+    success: bool = Field(..., description="Success status")
+    upload_url: str = Field(..., description="Signed upload URL")
+    document_id: str = Field(..., description="Document identifier")
+    expires_at: str = Field(..., description="URL expiration time")
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def create_upload_url(
-    request: UploadRequest,
-    current_user: dict = Depends(require_auth)
-) -> UploadResponse:
+async def upload_file(
+    file: UploadFile = File(...),
+    user: Optional[dict] = Depends(optional_auth)
+):
     """
-    Create a signed upload URL for document upload.
-    
-    This endpoint:
-    1. Validates the upload request
-    2. Creates a new job and document record
-    3. Generates a signed upload URL
-    4. Returns the upload URL and job ID
+    Upload a file directly to Google Cloud Storage.
     """
     try:
-        # Generate unique IDs
-        job_id = uuid.uuid4()
-        document_id = uuid.uuid4()
+        # Validate file type
+        allowed_types = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'image/jpeg',
+            'image/png',
+            'image/tiff',
+            'text/plain'
+        ]
         
-        # Create document record
-        document = Document(
-            id=document_id,
-            filename=request.filename,
-            content_type=request.content_type,
-            size_bytes=request.size_bytes,
-            user_id=current_user["uid"],
-            jurisdiction=request.jurisdiction,
-            user_role=request.user_role,
-        )
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file.content_type}"
+            )
         
-        # Create job record
-        job_options = request.options or JobOptions()
-        job = Job(
-            id=job_id,
-            document_id=document_id,
-            user_id=current_user["uid"],
-            options=job_options,
-        )
+        # Generate unique document ID
+        document_id = str(uuid.uuid4())
         
-        # Generate signed upload URL
-        user_id = current_user["uid"]
-        blob_name = f"documents/{user_id}/{document_id}/{request.filename}"
-        upload_url = await storage_service.generate_signed_upload_url(
+        # Read file content
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        # Validate file size (50MB limit)
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size is {max_size // (1024*1024)}MB"
+            )
+        
+        # Upload to Google Cloud Storage
+        blob_name = f"documents/{document_id}/{file.filename}"
+        success = await storage_service.upload_file(
             blob_name=blob_name,
-            content_type=request.content_type,
-            size_limit=request.size_bytes,
-            expiration_minutes=30
+            file_content=file_content,
+            content_type=file.content_type
         )
         
-        # Store document and job in Firestore
-        await firestore_service.create_document(document)
-        await firestore_service.create_job(job)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload file to storage"
+            )
         
-        # Update document with storage URL
-        document.storage_url = f"gs://{settings.STORAGE_BUCKET}/{blob_name}"
-        await firestore_service.update_document(document)
+        # Get storage URL
+        storage_url = f"gs://{os.getenv('STORAGE_BUCKET_NAME')}/{blob_name}"
         
-        logger.info(
-            "Upload URL created",
-            job_id=str(job_id),
-            document_id=str(document_id),
-            user_id=current_user["uid"],
-            filename=request.filename,
-            size_bytes=request.size_bytes
-        )
+        # Start OCR processing in background
+        try:
+            await ocr_service.process_document(
+                file_content=file_content,
+                content_type=file.content_type,
+                document_id=document_id
+            )
+        except Exception as e:
+            print(f"OCR processing failed: {e}")
+            # Continue even if OCR fails
         
         return UploadResponse(
-            job_id=job_id,
-            upload_url=upload_url,
-            expires_at=datetime.utcnow() + timedelta(minutes=30),
-            max_file_size=50 * 1024 * 1024,  # 50MB
-            allowed_content_types=[
-                'application/pdf',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'application/msword',
-                'text/plain',
-                'image/jpeg',
-                'image/png',
-                'image/tiff',
-            ]
+            success=True,
+            document_id=document_id,
+            filename=file.filename,
+            file_size=file_size,
+            content_type=file.content_type,
+            storage_url=storage_url,
+            message="File uploaded and processing started successfully"
         )
-        
-    except GoogleCloudError as e:
-        logger.error(
-            "Google Cloud error during upload URL creation",
-            error=str(e),
-            user_id=current_user["uid"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Storage service temporarily unavailable"
-        )
-    except Exception as e:
-        logger.error(
-            "Unexpected error during upload URL creation",
-            error=str(e),
-            user_id=current_user["uid"],
-            exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create upload URL"
-        )
-
-
-@router.post("/upload/{job_id}/complete")
-async def complete_upload(
-    job_id: uuid.UUID,
-    current_user: dict = Depends(require_auth)
-) -> dict:
-    """
-    Mark upload as complete and trigger processing.
-    
-    This endpoint is called after the file has been successfully uploaded
-    to the signed URL to trigger the document processing pipeline.
-    """
-    try:
-        # Get job from Firestore
-        job = await firestore_service.get_job(job_id)
-        if not job:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job not found"
-            )
-        
-        # Verify job ownership
-        if job.user_id != current_user["uid"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-        
-        # Verify file was uploaded
-        document = await firestore_service.get_document(job.document_id)
-        if not document:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found"
-            )
-        
-        # Check if file exists in storage
-        blob_exists = await storage_service.blob_exists(document.storage_url)
-        if not blob_exists:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File upload not completed"
-            )
-        
-        # Update job status and trigger processing
-        from app.services.workflow import WorkflowService
-        workflow_service = WorkflowService()
-        
-        # Start the processing workflow
-        await workflow_service.start_document_processing(job_id)
-        
-        logger.info(
-            "Upload completed and processing started",
-            job_id=str(job_id),
-            document_id=str(job.document_id),
-            user_id=current_user["uid"]
-        )
-        
-        return {
-            "message": "Upload completed successfully",
-            "job_id": str(job_id),
-            "status": "processing_started"
-        }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "Error completing upload",
-            job_id=str(job_id),
-            user_id=current_user["uid"],
-            error=str(e),
-            exc_info=True
-        )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete upload"
+            status_code=500,
+            detail=f"Upload failed: {str(e)}"
         )
 
 
-@router.get("/upload/limits")
-async def get_upload_limits(
-    current_user: dict = Depends(require_auth)
-) -> dict:
+@router.post("/upload/signed-url", response_model=SignedUploadResponse)
+async def get_signed_upload_url(
+    filename: str = Form(...),
+    content_type: str = Form(...),
+    user: Optional[dict] = Depends(optional_auth)
+):
     """
-    Get upload limits and supported file types.
+    Get a signed URL for direct client-side upload to Google Cloud Storage.
     """
-    return {
-        "max_file_size": 50 * 1024 * 1024,  # 50MB
-        "max_files_per_day": 100,
-        "supported_content_types": [
-            {
-                "type": "application/pdf",
-                "extensions": [".pdf"],
-                "description": "PDF documents"
-            },
-            {
-                "type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "extensions": [".docx"],
-                "description": "Microsoft Word documents (modern)"
-            },
-            {
-                "type": "application/msword",
-                "extensions": [".doc"],
-                "description": "Microsoft Word documents (legacy)"
-            },
-            {
-                "type": "text/plain",
-                "extensions": [".txt"],
-                "description": "Plain text files"
-            },
-            {
-                "type": "image/jpeg",
-                "extensions": [".jpg", ".jpeg"],
-                "description": "JPEG images"
-            },
-            {
-                "type": "image/png",
-                "extensions": [".png"],
-                "description": "PNG images"
-            },
-            {
-                "type": "image/tiff",
-                "extensions": [".tiff", ".tif"],
-                "description": "TIFF images"
-            }
-        ],
-        "processing_options": {
-            "enable_translation": {
-                "type": "boolean",
-                "default": True,
-                "description": "Enable multi-language translation"
-            },
-            "enable_audio": {
-                "type": "boolean",
-                "default": True,
-                "description": "Generate audio narration"
-            },
-            "reading_level": {
-                "type": "enum",
-                "options": ["elementary", "middle", "high", "college"],
-                "default": "middle",
-                "description": "Target reading level for summaries"
-            },
-            "highlight_risks": {
-                "type": "boolean",
-                "default": True,
-                "description": "Highlight risky clauses in exports"
-            }
-        }
-    }
+    try:
+        # Validate file type
+        allowed_types = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'image/jpeg',
+            'image/png',
+            'image/tiff',
+            'text/plain'
+        ]
+        
+        if content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {content_type}"
+            )
+        
+        # Generate unique document ID
+        document_id = str(uuid.uuid4())
+        
+        # Generate blob name
+        blob_name = f"documents/{document_id}/{filename}"
+        
+        # Get signed upload URL
+        upload_url = await storage_service.generate_signed_upload_url(
+            blob_name=blob_name,
+            content_type=content_type,
+            expires_in=3600  # 1 hour
+        )
+        
+        if not upload_url:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate signed upload URL"
+            )
+        
+        # Calculate expiration time
+        expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+        
+        return SignedUploadResponse(
+            success=True,
+            upload_url=upload_url,
+            document_id=document_id,
+            expires_at=expires_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate signed URL: {str(e)}"
+        )

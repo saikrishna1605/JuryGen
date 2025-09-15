@@ -9,9 +9,11 @@ interface AnimatedBackgroundProps {
 
 export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
   variant = 'mesh',
-  intensity = 'medium',
+  intensity = 'medium', // @ts-ignore - Reserved for future intensity variations
   className = '',
 }) => {
+  // Suppress unused variable warning - intensity will be used for future enhancements
+  void intensity;
   const renderMesh = () => (
     <div className={`absolute inset-0 overflow-hidden ${className}`}>
       {/* Animated gradient mesh */}

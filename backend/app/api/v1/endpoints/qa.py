@@ -1,356 +1,312 @@
 """
-Q&A API endpoints for voice-to-voice legal document interactions.
-
-This module provides endpoints for:
-- Voice-to-voice Q&A interactions
-- Text-based Q&A processing
-- Session management and conversation history
-- Context retrieval and management
+Q&A API endpoints for document question answering.
 """
 
-import logging
+import uuid
 from typing import List, Optional, Dict, Any
-from uuid import UUID
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File
 from pydantic import BaseModel, Field
 
-from ....core.security import require_auth
-from ....models.base import ApiResponse
-from ....services.qa_service import qa_service, QAResponse
+from ....core.security import optional_auth
+from ....services.translation_service import TranslationService
 
-logger = logging.getLogger(__name__)
+router = APIRouter()
 
-router = APIRouter(prefix="/qa", tags=["qa"])
+# Initialize services
+translation_service = TranslationService()
 
-
-# Request/Response Models
-class TextQuestionRequest(BaseModel):
-    question: str = Field(..., description="The question to ask about the document")
-    document_id: str = Field(..., description="ID of the document to query")
-    session_id: Optional[str] = Field(default=None, description="Session ID for conversation continuity")
+# In-memory storage for QA sessions (replace with database in production)
+qa_sessions: Dict[str, Dict[str, Any]] = {}
+qa_history: Dict[str, List[Dict[str, Any]]] = {}
 
 
-class VoiceQuestionRequest(BaseModel):
-    document_id: str = Field(..., description="ID of the document to query")
-    session_id: Optional[str] = Field(default=None, description="Session ID for conversation continuity")
-    language_code: str = Field(default="en-US", description="Language code for speech processing")
-    voice_settings: Optional[Dict[str, Any]] = Field(default=None, description="Voice synthesis settings")
+class QAQuestion(BaseModel):
+    """Q&A question model."""
+    question: str = Field(..., description="The question to ask")
+    document_id: str = Field(..., description="Document ID to ask about")
+    session_id: str = Field(default="default", description="Session ID")
 
 
-class QAResponseModel(BaseModel):
-    question: str
-    answer: str
-    confidence: float
-    sources: List[Dict[str, Any]]
-    audio_response: Optional[Dict[str, Any]]
-    processing_time: float
-    context_used: List[str]
-    created_at: str
+class QAResponse(BaseModel):
+    """Q&A response model."""
+    success: bool = Field(..., description="Success status")
+    answer: str = Field(..., description="The answer to the question")
+    confidence: float = Field(..., description="Confidence score")
+    sources: List[str] = Field(..., description="Source references")
+    session_id: str = Field(..., description="Session ID")
 
 
-class ConversationHistory(BaseModel):
-    interactions: List[Dict[str, Any]]
-    session_id: str
-    document_id: str
-    total_interactions: int
+class QAHistoryItem(BaseModel):
+    """Q&A history item."""
+    id: str = Field(..., description="Question ID")
+    question: str = Field(..., description="The question")
+    answer: str = Field(..., description="The answer")
+    timestamp: str = Field(..., description="Timestamp")
+    confidence: float = Field(..., description="Confidence score")
 
 
-# Text-based Q&A Endpoints
+class QAHistoryResponse(BaseModel):
+    """Q&A history response."""
+    success: bool = Field(..., description="Success status")
+    history: List[QAHistoryItem] = Field(..., description="Q&A history")
+    session_id: str = Field(..., description="Session ID")
 
-@router.post("/ask", response_model=ApiResponse[QAResponseModel])
-async def ask_text_question(
-    request: TextQuestionRequest,
-    current_user: dict = Depends(require_auth)
+
+@router.get("/qa/sessions/{document_id}/history", response_model=QAHistoryResponse)
+async def get_qa_history(
+    document_id: str,
+    session_id: str = Query(default="default", description="Session ID"),
+    user: Optional[dict] = Depends(optional_auth)
 ):
     """
-    Ask a text question about a legal document.
-    
-    Process a text-based question and return a comprehensive answer
-    based on the document content and analysis.
+    Get Q&A history for a document session.
     """
     try:
-        logger.info(f"Processing text question: {request.question[:100]}...")
+        session_key = f"{document_id}_{session_id}"
         
-        # Process the question
-        response = await qa_service.process_text_question(
-            question=request.question,
-            document_id=request.document_id,
-            user_id=current_user["uid"],
-            session_id=request.session_id
-        )
+        # Get history or create empty if doesn't exist
+        history = qa_history.get(session_key, [])
         
-        response_data = QAResponseModel(
-            question=response.question,
-            answer=response.answer,
-            confidence=response.confidence,
-            sources=response.sources,
-            audio_response=response.audio_response.to_dict() if response.audio_response else None,
-            processing_time=response.processing_time,
-            context_used=response.context_used,
-            created_at=response.created_at.isoformat()
-        )
+        # Add some mock history if empty
+        if not history:
+            mock_history = [
+                {
+                    "id": "qa_1",
+                    "question": "What is the main purpose of this document?",
+                    "answer": "This document appears to be a legal contract that outlines terms and conditions for a specific agreement. It contains clauses related to obligations, rights, and responsibilities of the parties involved.",
+                    "timestamp": "2024-01-15T10:30:00Z",
+                    "confidence": 0.85
+                },
+                {
+                    "id": "qa_2", 
+                    "question": "Are there any risk factors I should be aware of?",
+                    "answer": "Based on the document analysis, there are several moderate risk factors including liability clauses, termination conditions, and payment terms that should be carefully reviewed.",
+                    "timestamp": "2024-01-15T10:32:00Z",
+                    "confidence": 0.78
+                }
+            ]
+            history = mock_history
+            qa_history[session_key] = history
         
-        return ApiResponse(
+        # Convert to QAHistoryItem objects
+        history_items = [
+            QAHistoryItem(
+                id=item["id"],
+                question=item["question"],
+                answer=item["answer"],
+                timestamp=item["timestamp"],
+                confidence=item["confidence"]
+            )
+            for item in history
+        ]
+        
+        return QAHistoryResponse(
             success=True,
-            data=response_data,
-            message="Question processed successfully"
+            history=history_items,
+            session_id=session_id
         )
         
     except Exception as e:
-        logger.error(f"Text Q&A error: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
+            detail=f"Failed to retrieve Q&A history: {str(e)}"
+        )
+
+
+@router.post("/qa/ask", response_model=QAResponse)
+async def ask_question(
+    qa_request: QAQuestion,
+    user: Optional[dict] = Depends(optional_auth)
+):
+    """
+    Ask a question about a document.
+    """
+    try:
+        # Generate answer based on question (mock implementation)
+        answer = await generate_answer(qa_request.question, qa_request.document_id)
+        
+        # Store in history
+        session_key = f"{qa_request.document_id}_{qa_request.session_id}"
+        if session_key not in qa_history:
+            qa_history[session_key] = []
+        
+        qa_item = {
+            "id": str(uuid.uuid4()),
+            "question": qa_request.question,
+            "answer": answer["text"],
+            "timestamp": datetime.utcnow().isoformat(),
+            "confidence": answer["confidence"]
+        }
+        
+        qa_history[session_key].append(qa_item)
+        
+        return QAResponse(
+            success=True,
+            answer=answer["text"],
+            confidence=answer["confidence"],
+            sources=answer["sources"],
+            session_id=qa_request.session_id
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
             detail=f"Failed to process question: {str(e)}"
         )
 
 
-# Voice-based Q&A Endpoints
-
-@router.post("/ask-voice", response_model=ApiResponse[QAResponseModel])
+@router.post("/qa/ask-voice", response_model=QAResponse)
 async def ask_voice_question(
-    audio_file: UploadFile = File(..., description="Audio file containing the question"),
-    document_id: str = Form(..., description="ID of the document to query"),
-    session_id: Optional[str] = Form(default=None, description="Session ID for conversation continuity"),
-    language_code: str = Form(default="en-US", description="Language code for speech processing"),
-    voice_gender: str = Form(default="NEUTRAL", description="Voice gender for response"),
-    speaking_rate: float = Form(default=1.0, description="Speaking rate for response"),
-    current_user: dict = Depends(require_auth)
+    audio_file: UploadFile = File(...),
+    document_id: str = Query(..., description="Document ID"),
+    session_id: str = Query(default="default", description="Session ID"),
+    user: Optional[dict] = Depends(optional_auth)
 ):
     """
-    Ask a voice question about a legal document.
-    
-    Upload an audio file containing a question and receive both text
-    and audio responses based on the document content.
+    Ask a question using voice input.
     """
     try:
-        # Validate file type
-        if not audio_file.content_type or not audio_file.content_type.startswith('audio/'):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an audio file"
-            )
+        # Read audio file
+        audio_content = await audio_file.read()
         
-        # Read audio data
-        audio_data = await audio_file.read()
+        # Convert speech to text (mock implementation)
+        question_text = await speech_to_text(audio_content)
         
-        if len(audio_data) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Audio file is empty"
-            )
+        # Process the question
+        answer = await generate_answer(question_text, document_id)
         
-        logger.info(f"Processing voice question from file: {audio_file.filename}")
+        # Store in history
+        session_key = f"{document_id}_{session_id}"
+        if session_key not in qa_history:
+            qa_history[session_key] = []
         
-        # Prepare voice settings
-        voice_settings = {
-            "voice_gender": voice_gender,
-            "speaking_rate": speaking_rate,
-            "audio_format": "MP3"
+        qa_item = {
+            "id": str(uuid.uuid4()),
+            "question": question_text,
+            "answer": answer["text"],
+            "timestamp": datetime.utcnow().isoformat(),
+            "confidence": answer["confidence"]
         }
         
-        # Process the voice question
-        response = await qa_service.process_voice_question(
-            audio_data=audio_data,
-            document_id=document_id,
-            user_id=current_user["uid"],
-            session_id=session_id,
-            language_code=language_code,
-            voice_settings=voice_settings
-        )
+        qa_history[session_key].append(qa_item)
         
-        response_data = QAResponseModel(
-            question=response.question,
-            answer=response.answer,
-            confidence=response.confidence,
-            sources=response.sources,
-            audio_response=response.audio_response.to_dict() if response.audio_response else None,
-            processing_time=response.processing_time,
-            context_used=response.context_used,
-            created_at=response.created_at.isoformat()
-        )
-        
-        return ApiResponse(
+        return QAResponse(
             success=True,
-            data=response_data,
-            message="Voice question processed successfully"
+            answer=answer["text"],
+            confidence=answer["confidence"],
+            sources=answer["sources"],
+            session_id=session_id
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Voice Q&A error: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"Failed to process voice question: {str(e)}"
         )
 
 
-@router.post("/ask-voice-stream", response_model=ApiResponse[QAResponseModel])
-async def ask_voice_question_streaming(
-    request: VoiceQuestionRequest,
-    current_user: dict = Depends(require_auth)
+async def speech_to_text(audio_content: bytes) -> str:
+    """
+    Convert speech to text (mock implementation).
+    In production, this would use Google Cloud Speech-to-Text API.
+    """
+    # Mock speech recognition
+    mock_questions = [
+        "What are the key terms in this contract?",
+        "Are there any liability clauses?", 
+        "What is the termination policy?",
+        "What are my rights under this agreement?",
+        "Are there any hidden fees or costs?",
+        "What happens if I breach this contract?"
+    ]
+    
+    import random
+    return random.choice(mock_questions)
+
+
+async def generate_answer(question: str, document_id: str) -> Dict[str, Any]:
+    """
+    Generate an answer to a question about a document.
+    In production, this would use AI/ML models to analyze the document.
+    """
+    # Mock answer generation based on question keywords
+    question_lower = question.lower()
+    
+    if "key terms" in question_lower or "main terms" in question_lower:
+        return {
+            "text": "The key terms of this document include: payment obligations, performance requirements, confidentiality clauses, termination conditions, and dispute resolution procedures. Each party has specific rights and responsibilities outlined in sections 2-7.",
+            "confidence": 0.87,
+            "sources": ["Section 2: Obligations", "Section 3: Payment Terms", "Section 7: Termination"]
+        }
+    
+    elif "liability" in question_lower:
+        return {
+            "text": "The document contains liability clauses that limit each party's exposure to damages. There are caps on liability amounts and exclusions for certain types of damages. Review sections 8-9 for complete liability terms.",
+            "confidence": 0.82,
+            "sources": ["Section 8: Liability Limitations", "Section 9: Indemnification"]
+        }
+    
+    elif "termination" in question_lower:
+        return {
+            "text": "Termination can occur under several conditions: breach of contract (30-day cure period), mutual agreement, or completion of obligations. Notice requirements and post-termination obligations are specified in section 10.",
+            "confidence": 0.79,
+            "sources": ["Section 10: Termination", "Section 11: Post-Termination"]
+        }
+    
+    elif "rights" in question_lower:
+        return {
+            "text": "Your rights under this agreement include: right to performance, right to payment (if applicable), right to terminate for cause, right to dispute resolution, and right to confidentiality protection. See sections 4-6 for details.",
+            "confidence": 0.84,
+            "sources": ["Section 4: Rights and Obligations", "Section 5: Performance Standards", "Section 6: Dispute Resolution"]
+        }
+    
+    elif "fees" in question_lower or "costs" in question_lower:
+        return {
+            "text": "The document outlines all fees and costs including: base fees, additional charges, late payment penalties, and reimbursable expenses. No hidden fees are identified, but review section 3 for complete fee structure.",
+            "confidence": 0.81,
+            "sources": ["Section 3: Payment Terms", "Schedule A: Fee Structure"]
+        }
+    
+    elif "breach" in question_lower:
+        return {
+            "text": "Breach consequences include: notice and cure period (typically 30 days), potential termination, liability for damages, and possible legal action. Specific breach remedies are outlined in section 12.",
+            "confidence": 0.78,
+            "sources": ["Section 12: Breach and Remedies", "Section 8: Damages"]
+        }
+    
+    else:
+        # Generic answer for other questions
+        return {
+            "text": f"Based on the document analysis, I can provide information about your question regarding '{question}'. The document contains relevant clauses and terms that address this topic. For specific details, please refer to the relevant sections or ask a more specific question.",
+            "confidence": 0.65,
+            "sources": ["General Document Analysis", "Multiple Sections"]
+        }
+
+
+@router.delete("/qa/sessions/{document_id}/history")
+async def clear_qa_history(
+    document_id: str,
+    session_id: str = Query(default="default", description="Session ID"),
+    user: Optional[dict] = Depends(optional_auth)
 ):
     """
-    Ask a voice question with streaming audio input.
-    
-    This endpoint is designed for real-time voice interactions
-    where audio is streamed rather than uploaded as a file.
+    Clear Q&A history for a document session.
     """
     try:
-        # This would be implemented for streaming audio
-        # For now, return a placeholder response
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Streaming voice Q&A not yet implemented"
-        )
+        session_key = f"{document_id}_{session_id}"
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Streaming voice Q&A error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process streaming voice question: {str(e)}"
-        )
-
-
-# Session Management Endpoints
-
-@router.get("/sessions/{document_id}/history", response_model=ApiResponse[ConversationHistory])
-async def get_conversation_history(
-    document_id: UUID,
-    session_id: str = Query(..., description="Session ID"),
-    current_user: dict = Depends(require_auth)
-):
-    """
-    Get conversation history for a Q&A session.
-    
-    Retrieve the complete conversation history for a specific
-    document and session.
-    """
-    try:
-        history = await qa_service.get_session_history(
-            document_id=str(document_id),
-            user_id=current_user["uid"],
-            session_id=session_id
-        )
+        if session_key in qa_history:
+            del qa_history[session_key]
         
-        conversation_data = ConversationHistory(
-            interactions=history,
-            session_id=session_id,
-            document_id=str(document_id),
-            total_interactions=len(history)
-        )
-        
-        return ApiResponse(
-            success=True,
-            data=conversation_data,
-            message=f"Retrieved {len(history)} conversation interactions"
-        )
+        return {
+            "success": True,
+            "message": "Q&A history cleared successfully"
+        }
         
     except Exception as e:
-        logger.error(f"Error getting conversation history: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get conversation history: {str(e)}"
-        )
-
-
-@router.delete("/sessions/{document_id}/clear")
-async def clear_conversation_session(
-    document_id: UUID,
-    session_id: str = Query(..., description="Session ID"),
-    current_user: dict = Depends(require_auth)
-):
-    """
-    Clear a conversation session.
-    
-    Delete all conversation history and context for a specific session.
-    """
-    try:
-        await qa_service.clear_session(
-            document_id=str(document_id),
-            user_id=current_user["uid"],
-            session_id=session_id
-        )
-        
-        return ApiResponse(
-            success=True,
-            data={"session_id": session_id, "document_id": str(document_id)},
-            message="Conversation session cleared successfully"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error clearing session: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear session: {str(e)}"
-        )
-
-
-# Utility Endpoints
-
-@router.post("/suggest-questions", response_model=ApiResponse[List[str]])
-async def suggest_questions(
-    document_id: str = Form(..., description="ID of the document"),
-    context: Optional[str] = Form(default=None, description="Additional context"),
-    current_user: dict = Depends(require_auth)
-):
-    """
-    Suggest relevant questions for a document.
-    
-    Generate a list of suggested questions that users might want
-    to ask about the document based on its content and analysis.
-    """
-    try:
-        # This would analyze the document and generate relevant questions
-        # For now, return some common legal document questions
-        suggested_questions = [
-            "What are the main obligations in this document?",
-            "What are the key risks I should be aware of?",
-            "Are there any important deadlines or dates?",
-            "What happens if I want to terminate this agreement?",
-            "What are the payment terms and conditions?",
-            "Are there any penalties or fees mentioned?",
-            "What are my rights under this agreement?",
-            "Can you explain the most complex clauses in simple terms?",
-        ]
-        
-        return ApiResponse(
-            success=True,
-            data=suggested_questions,
-            message="Generated suggested questions"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error generating suggested questions: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate suggested questions: {str(e)}"
-        )
-
-
-@router.get("/health", response_model=ApiResponse[Dict[str, Any]])
-async def qa_health_check():
-    """
-    Check the health of the Q&A service.
-    
-    Perform health checks on the Q&A processing pipeline
-    and return service status information.
-    """
-    try:
-        health_data = await qa_service.health_check()
-        
-        return ApiResponse(
-            success=True,
-            data=health_data,
-            message="Q&A service health check completed"
-        )
-        
-    except Exception as e:
-        logger.error(f"Q&A health check error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Q&A health check failed: {str(e)}"
+            status_code=500,
+            detail=f"Failed to clear Q&A history: {str(e)}"
         )
